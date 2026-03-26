@@ -1,0 +1,37 @@
+{
+  "name": "string",
+  "title": "string — current or target job title",
+  "contact": {
+    "email": "string",
+    "phone": "string",
+    "location": "string — City, Country",
+    "linkedin": "string — optional, linkedin.com/in/handle"
+  },
+  "summary": "string — max 400 characters, max 3 sentences",
+  "experience": [
+    {
+      "company": "string",
+      "title": "string",
+      "location": "string",
+      "start": "string — Mon YYYY format e.g. Jan 2021",
+      "end": "string — Mon YYYY or Present",
+      "bullets": ["string — max 120 chars each, max 4 bullets per role"]
+    }
+  ],
+  "education": [
+    {
+      "institution": "string",
+      "degree": "string",
+      "field": "string",
+      "year": "string — YYYY"
+    }
+  ],
+  "skills": ["string — max 12 items total"],
+  "certifications": [
+    {
+      "name": "string",
+      "issuer": "string",
+      "year": "string"
+    }
+  ]
+}
