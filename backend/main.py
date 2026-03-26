@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
-print("GROQ KEY LOADED:", bool(os.environ.get("GROQ_API_KEY")))
+#print("GROQ KEY LOADED:", bool(os.environ.get("GROQ_API_KEY")))
 
 from services.parser import parse_pdf
 from services.extractor import extract_profile
