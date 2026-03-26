@@ -128,12 +128,6 @@ The app is built across 7 sequential parts. Do not move to the next part until t
 - [ ] Create the full folder structure from the repo structure section above (empty files are fine)
 - [ ] Push the scaffolded structure as the first commit on `dev`
 
-#### 0.2 — Domain
-
-- [ ] Check `readytoapply.com` availability on Namecheap or Cloudflare Registrar
-- [ ] Check alternatives if taken: `readytoapply.io`, `readytoapply.co`, `getreadytoapply.com`
-- [ ] Purchase chosen domain — Cloudflare Registrar is cheapest (at-cost, no markup)
-- [ ] Do not configure DNS yet — that happens in Part 5
 
 #### 0.3 — Define the JSON schema
 
