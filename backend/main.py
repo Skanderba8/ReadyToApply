@@ -27,29 +27,30 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+from fastapi.responses import Response
+
 @app.post("/generate")
 async def generate(
     file: UploadFile = File(...),
-    job_description: str = Form(...)
+    job_description: str = Form(...),
+    template: str = Form(default="classic")
 ):
-    """
-    Main endpoint. Takes a PDF + job description, returns tailored CV JSON.
-    """
     try:
-        # Step 1 — parse PDF
         file_bytes = await file.read()
         raw_text = parse_pdf(file_bytes)
-
-        # Step 2 — extract structured profile from raw text
         profile = extract_profile(raw_text)
-
-        # Step 3 — rewrite to be strong and clean
         generated = generate_cv(profile)
-
-        # Step 4 — tailor to job description
         tailored = tailor_cv(generated, job_description)
 
-        return tailored.model_dump()
+        # Render to .docx
+        from services.renderer import render_cv
+        docx_bytes = render_cv(tailored, template_name=template)
+
+        return Response(
+            content=docx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": "attachment; filename=cv.docx"}
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
