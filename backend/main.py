@@ -14,11 +14,13 @@ from pathlib import Path
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
+from supabase import create_client, Client as SupabaseClient
 from services.parser import parse_pdf
 from services.extractor import extract_profile
 from services.generator import generate_cv
 from services.tailor import tailor_cv
 from services.keywords import extract_keywords
+from services.utils import detect_lang
 from models.schema import CVProfile
 
 # ---------------------------------------------------------------------------
@@ -39,10 +41,25 @@ MAX_JOB_DESC_CHARS = 8_000
 MAX_RAW_TEXT_CHARS = 15_000
 
 ALLOWED_ORIGINS = [
-    "https://readytoapply.skander.cc",
+    "https://readytoapply.work",
+    "https://www.readytoapply.work",
     "https://readytoapply-frontend.vercel.app",
     "http://localhost:3000",
 ]
+
+# ---------------------------------------------------------------------------
+# Supabase client
+# ---------------------------------------------------------------------------
+_supabase: SupabaseClient | None = None
+
+def _get_supabase() -> SupabaseClient | None:
+    global _supabase
+    if _supabase is None:
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_KEY")
+        if url and key:
+            _supabase = create_client(url, key)
+    return _supabase
 
 # ---------------------------------------------------------------------------
 # Rate limiter — per IP
@@ -116,25 +133,22 @@ def health():
 
 @app.post("/review")
 async def submit_review(request: Request, payload: dict):
-    """Store anonymous review (stars + comment) to a local JSON file."""
+    """Store anonymous review (stars + comment) to Supabase."""
     stars = payload.get("stars")
     comment = str(payload.get("comment", "")).strip()[:500]
     if not isinstance(stars, int) or not (1 <= stars <= 5):
         raise HTTPException(status_code=422, detail="stars must be 1–5")
 
-    import datetime
-    entry = {
-        "stars": stars,
-        "comment": comment,
-        "ts": datetime.datetime.utcnow().isoformat(),
-    }
-    reviews_path = Path(__file__).parent / "reviews.json"
+    db = _get_supabase()
+    if db is None:
+        logger.warning("Supabase not configured — review dropped")
+        return {"ok": True}
+
     try:
-        reviews = json.loads(reviews_path.read_text()) if reviews_path.exists() else []
-        reviews.append(entry)
-        reviews_path.write_text(json.dumps(reviews, ensure_ascii=False, indent=2))
+        db.table("reviews").insert({"stars": stars, "comment": comment}).execute()
     except Exception as e:
         logger.error("Failed to save review: %s", e)
+
     return {"ok": True}
 
 
@@ -153,11 +167,7 @@ async def extract(
         raw_text = parse_pdf(file_bytes)
         raw_text = raw_text[:MAX_RAW_TEXT_CHARS]
 
-        # Detect job description language before generating
-        fr_words = ["le ", "la ", "les ", "de ", "du ", "des ", "et ", "en ", "pour ",
-                    "avec ", "dans ", "sur ", "une ", "est ", "sont ", "par ", "au "]
-        jd_lower = job_description.lower()
-        target_lang = "fr" if sum(1 for w in fr_words if w in jd_lower) >= 4 else "en"
+        target_lang = detect_lang(job_description)
 
         profile = extract_profile(raw_text)
         generated = generate_cv(profile, target_lang=target_lang)

@@ -64,6 +64,7 @@ const UI: Record<string, Record<Lang, string>> = {
 
   // StepReview
   reviewTitle:      { en: "Review your CV",   fr: "Vérifiez votre CV" },
+  reviewing:        { en: "Review your CV",   fr: "Vérifiez votre CV" },
   reviewSub:        { en: "Check everything looks right. Edit any field before generating.", fr: "Vérifiez que tout est correct. Modifiez avant de générer." },
   dragHint:         { en: "Drag sections to reorder", fr: "Glissez les sections pour les réorganiser" },
   analysing:        { en: "Analysing your profile…",  fr: "Analyse de votre profil…" },
@@ -75,6 +76,7 @@ const UI: Record<string, Record<Lang, string>> = {
   sectionDisabled:  { en: "Section disabled. Toggle on to include in your CV.", fr: "Section désactivée. Activez-la pour l'inclure dans votre CV." },
   startOver:        { en: "Start over",          fr: "Recommencer" },
   roleN:            { en: "Role",                fr: "Poste" },
+  enableSection:    { en: "Enable section",      fr: "Activer la section" },
 
   // Section names
   basics:           { en: "Basics",          fr: "Informations générales" },

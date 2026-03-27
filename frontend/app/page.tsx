@@ -110,7 +110,7 @@ export default function LandingPage() {
             <span className="text-xs text-[#9A9A9A]">{u("noDataStored")}</span>
             <span className="text-xs text-[#444444]">
               {u("madeBy")}{" "}
-              <a href="https://github.com/Skanderba8" target="_blank" rel="noopener noreferrer"
+              <a href="https://github.com/Skanderba8/ReadyToApply" target="_blank" rel="noopener noreferrer"
                 className="text-[#555555] hover:text-[#FF4D00] transition-colors">
                 Skander Ben Abdallah
               </a>

@@ -166,7 +166,7 @@ export default function StepDownload({ cvData, jobDescription, template, keyword
             <button onClick={onRestart}
               className="px-6 py-3 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
               style={{ fontFamily: "var(--font-body)" }}>
-              {lang === "fr" ? "Recommencer" : "Start over"}
+              {u("startOver")}
             </button>
           </div>
           <ReviewWidget lang={lang} />

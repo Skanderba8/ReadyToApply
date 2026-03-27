@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import {
@@ -11,7 +11,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { RefreshCw, AlertCircle, Plus, X, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { extractCV, CVData, Keywords } from "@/lib/api";
-import { useLang, detectJobLang } from "@/lib/i18n";
+import { useLang } from "@/lib/i18n";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,63 +39,6 @@ const LANGUAGES_FR = [
   "Danois", "Norvégien", "Finnois", "Coréen", "Hindi", "Autre",
 ];
 
-// ─── i18n labels ─────────────────────────────────────────────────────────────
-
-function t(key: string, lang: "en" | "fr"): string {
-  const labels: Record<string, Record<string, string>> = {
-    reviewing: { en: "Review your CV", fr: "Vérifiez votre CV" },
-    reviewSub: { en: "Check everything looks right. Edit any field before generating.", fr: "Vérifiez que tout est correct. Modifiez avant de générer." },
-    basics: { en: "Basics", fr: "Informations générales" },
-    contact: { en: "Contact", fr: "Contact" },
-    experience: { en: "Experience", fr: "Expérience" },
-    education: { en: "Education", fr: "Formation" },
-    skills: { en: "Skills", fr: "Compétences" },
-    certifications: { en: "Certifications", fr: "Certifications" },
-    languages: { en: "Languages", fr: "Langues" },
-    projects: { en: "Projects", fr: "Projets" },
-    keywords: { en: "Job Keywords", fr: "Mots-clés du poste" },
-    fullName: { en: "Full name", fr: "Nom complet" },
-    profTitle: { en: "Professional title", fr: "Titre professionnel" },
-    summary: { en: "Summary", fr: "Résumé" },
-    email: { en: "Email", fr: "Email" },
-    phone: { en: "Phone", fr: "Téléphone" },
-    location: { en: "Location", fr: "Localisation" },
-    linkedin: { en: "LinkedIn URL", fr: "URL LinkedIn" },
-    company: { en: "Company", fr: "Entreprise" },
-    title: { en: "Title", fr: "Titre" },
-    start: { en: "Start", fr: "Début" },
-    end: { en: "End", fr: "Fin" },
-    bullets: { en: "Bullets", fr: "Points" },
-    addBullet: { en: "Add bullet", fr: "Ajouter un point" },
-    addExperience: { en: "Add experience", fr: "Ajouter une expérience" },
-    addEducation: { en: "Add formation", fr: "Ajouter une formation" },
-    addCert: { en: "Add certification", fr: "Ajouter une certification" },
-    addLanguage: { en: "Add language", fr: "Ajouter une langue" },
-    addProject: { en: "Add project", fr: "Ajouter un projet" },
-    addSkill: { en: "Add skill", fr: "Ajouter une compétence" },
-    remove: { en: "Remove", fr: "Supprimer" },
-    institution: { en: "Institution", fr: "Établissement" },
-    degree: { en: "Degree", fr: "Diplôme" },
-    field: { en: "Field of study", fr: "Domaine d'études" },
-    year: { en: "Year", fr: "Année" },
-    issuer: { en: "Issuer", fr: "Organisme" },
-    language: { en: "Language", fr: "Langue" },
-    level: { en: "Level", fr: "Niveau" },
-    projName: { en: "Project name", fr: "Nom du projet" },
-    projDesc: { en: "Description", fr: "Description" },
-    projUrl: { en: "URL", fr: "URL" },
-    looksGood: { en: "Looks good — choose template", fr: "C'est bon — choisir le modèle" },
-    back: { en: "← Back", fr: "← Retour" },
-    keywordsSub: { en: "Keywords extracted from the job description. The AI uses these when tailoring.", fr: "Mots-clés extraits de l'offre d'emploi. L'IA les utilise pour adapter votre CV." },
-    technical: { en: "Technical", fr: "Technique" },
-    soft: { en: "Soft skills", fr: "Savoir-être" },
-    industry: { en: "Industry", fr: "Secteur" },
-    add: { en: "Add", fr: "Ajouter" },
-    dragHint: { en: "Drag sections to reorder", fr: "Glissez les sections pour les réorganiser" },
-    enableSection: { en: "Enable section", fr: "Activer la section" },
-  };
-  return labels[key]?.[lang] ?? labels[key]?.["en"] ?? key;
-}
 
 // ─── Small UI components ──────────────────────────────────────────────────────
 
@@ -206,16 +149,6 @@ function SortableSection({ id, title, children, defaultOpen = false, rightSlot }
   );
 }
 
-// ─── Language detection ───────────────────────────────────────────────────────
-
-function detectLang(jobDescription: string): "en" | "fr" {
-  const frWords = ["le ", "la ", "les ", "de ", "du ", "des ", "et ", "en ", "pour ", "avec ",
-    "nous ", "vous ", "dans ", "sur ", "une ", "un ", "est ", "sont ", "être ", "avoir ",
-    "poste ", "emploi ", "entreprise ", "équipe ", "expérience ", "compétences "];
-  const text = jobDescription.toLowerCase();
-  const frCount = frWords.filter(w => text.includes(w)).length;
-  return frCount >= 4 ? "fr" : "en";
-}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -340,15 +273,15 @@ export default function StepReview({ file, pastedText, jobDescription, initialCv
   if (loadState === "loading") return (
     <div className="animate-fade-up">
       <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
-        {lang === "fr" ? "Analyse de votre profil…" : "Analysing your profile…"}
+        {u("analysing")}
       </h2>
       <p className="text-[#9A9A9A] mb-10 text-sm">
-        {lang === "fr" ? "Extraction de votre expérience. Environ 15 secondes." : "Extracting your experience and matching it to the job. Takes about 15 seconds."}
+        {u("analysingTime")}
       </p>
       <div className="flex items-center gap-4 px-8 py-4 border border-[#2E2E2E]">
         <RefreshCw size={16} className="animate-spin" style={{ color: "#FF4D00" }} />
         <span className="text-sm text-[#F5F0EB] animate-pulse">
-          {lang === "fr" ? "Lecture de votre CV et de l'offre d'emploi…" : "Reading your CV and job description…"}
+          {u("analysingMsg")}
         </span>
       </div>
     </div>
@@ -362,7 +295,7 @@ export default function StepReview({ file, pastedText, jobDescription, initialCv
       <div className="flex items-start gap-3 p-4 border border-red-900 bg-red-950/30">
         <AlertCircle size={18} className="text-red-400 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-red-400 mb-1">{lang === "fr" ? "Échec de l'extraction" : "Extraction failed"}</p>
+          <p className="text-sm font-medium text-red-400 mb-1">{u("extractFailed")}</p>
           <p className="text-xs text-red-400/70">{errorMessage}</p>
         </div>
       </div>
@@ -553,7 +486,7 @@ export default function StepReview({ file, pastedText, jobDescription, initialCv
         <p className="text-xs text-[#9A9A9A]">{u("keywordsSub")}</p>
         {(["technical", "soft", "industry"] as const).map(bucket => (
           <div key={bucket}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#9A9A9A] mb-2">{t(bucket, lang)}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#9A9A9A] mb-2">{u(bucket)}</p>
             <div className="flex flex-wrap gap-2">
               {keywords[bucket].map((k, i) => <Pill key={i} label={k} onRemove={() => removeKw(bucket, i)} />)}
               <AddPill placeholder={u("add")} onAdd={v => addKw(bucket, v)} />
@@ -612,7 +545,7 @@ export default function StepReview({ file, pastedText, jobDescription, initialCv
                   {isEnabled
                     ? sectionContent[section.id]
                     : <p className="text-xs text-[#9A9A9A] italic">
-                        {lang === "fr" ? "Section désactivée. Activez-la pour l'inclure dans votre CV." : "Section disabled. Toggle on to include in your CV."}
+                        {u("sectionDisabled")}
                       </p>
                   }
                 </SortableSection>
