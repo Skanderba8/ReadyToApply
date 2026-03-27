@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+console.log("[api] API_URL =", API_URL);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,16 +97,21 @@ export async function extractCV(
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/extract`, {
+    const url = `${API_URL}/extract`;
+    console.log("[api] POST", url);
+    response = await fetch(url, {
       method: "POST",
       body: formData,
     });
-  } catch {
+    console.log("[api] /extract response status:", response.status, response.statusText);
+  } catch (err) {
+    console.error("[api] /extract network error:", err);
     throw new Error("Network error. Please check your connection and try again.");
   }
 
   if (!response.ok) {
     const detail = await parseErrorResponse(response);
+    console.error("[api] /extract failed:", response.status, detail);
     throw new Error(detail);
   }
 
