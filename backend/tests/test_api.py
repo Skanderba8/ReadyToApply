@@ -53,7 +53,7 @@ async def test_generate_returns_docx():
             })
 
     assert r.status_code == 200
-    assert "docx" in r.headers["content-type"]
+    assert "wordprocessingml" in r.headers["content-type"]
 
 
 @pytest.mark.asyncio
