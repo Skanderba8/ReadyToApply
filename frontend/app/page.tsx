@@ -208,19 +208,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Footer ───────────────────────────────────────────────── */}
       <footer className="px-6 md:px-12 py-8 border-t border-[#2E2E2E]">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <span
-  className="flex items-center gap-2 text-sm font-bold"
-  style={{ fontFamily: "var(--font-display)" }}
->
-  <img src="/logo.png" alt="" width={18} height={18} aria-hidden="true" />
-  ReadyToApply
-</span>
-          <span className="text-xs text-[#9A9A9A]">
-            No accounts. No subscriptions. No stored data.
+          <span className="flex items-center gap-2 text-sm font-bold" style={{ fontFamily: "var(--font-display)" }}>
+            <img src="/logo.png" alt="" width={18} height={18} aria-hidden="true" />
+            ReadyToApply
           </span>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-xs text-[#9A9A9A]">No accounts. No subscriptions. No stored data.</span>
+            <span className="text-xs text-[#444444]">
+              Made by{" "}
+              <a href="https://github.com/Skanderba8" target="_blank" rel="noopener noreferrer"
+                className="text-[#555555] hover:text-[#FF4D00] transition-colors">
+                Skander Ben Abdallah
+              </a>
+              {" "}· MIT License
+            </span>
+          </div>
         </div>
       </footer>
 

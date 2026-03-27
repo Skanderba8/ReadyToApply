@@ -227,12 +227,12 @@ def _build_contact_para(doc, profile, font, cfg, alignment=None):
     if contact.linkedin:
         set_font(p.add_run("  |  "), font, cfg["font_size_contact"], color_hex=cfg["color_contact"])
         url = contact.linkedin if contact.linkedin.startswith("http") else f"https://{contact.linkedin}"
-        _add_hyperlink(p, contact.linkedin, url, font, cfg["font_size_contact"], link_color)
+        _add_hyperlink(p, "LinkedIn", url, font, cfg["font_size_contact"], link_color)
 
     if contact.github:
         set_font(p.add_run("  |  "), font, cfg["font_size_contact"], color_hex=cfg["color_contact"])
         url = contact.github if contact.github.startswith("http") else f"https://{contact.github}"
-        _add_hyperlink(p, contact.github, url, font, cfg["font_size_contact"], link_color)
+        _add_hyperlink(p, "GitHub", url, font, cfg["font_size_contact"], link_color)
 
     return p
 

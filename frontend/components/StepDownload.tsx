@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Download, RefreshCw, CheckCircle, AlertCircle, FileText } from "lucide-react";
-import { generateCV, generateCVPdf, downloadBlob, CVData, Keywords } from "@/lib/api";
+import { Download, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { generateCV, downloadBlob, CVData, Keywords } from "@/lib/api";
 
 interface StepDownloadProps {
   cvData: CVData;
@@ -20,20 +20,15 @@ export default function StepDownload({
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [pdfError, setPdfError] = useState("");
-  const [filename, setFilename] = useState("CV.docx");
 
   const safeName = cvData.name.replace(/\s+/g, "_").replace(/\//g, "_");
 
   const handleGenerate = async () => {
     setDocxBlob(null);
     setErrorMessage("");
-    setPdfError("");
     setStatus("generating");
     try {
       const blob = await generateCV(cvData, jobDescription, template, keywords ?? undefined);
-      setFilename(`CV_${safeName}.docx`);
       setDocxBlob(blob);
       setStatus("done");
     } catch (err) {
@@ -42,21 +37,8 @@ export default function StepDownload({
     }
   };
 
-  const handleDownloadDocx = () => {
+  const handleDownload = () => {
     if (docxBlob) downloadBlob(docxBlob, `CV_${safeName}.docx`);
-  };
-
-  const handleDownloadPdf = async () => {
-    setPdfLoading(true);
-    setPdfError("");
-    try {
-      const blob = await generateCVPdf(cvData, jobDescription, template, keywords ?? undefined);
-      downloadBlob(blob, `CV_${safeName}.pdf`);
-    } catch (err) {
-      setPdfError(err instanceof Error ? err.message : "PDF conversion failed.");
-    } finally {
-      setPdfLoading(false);
-    }
   };
 
   return (
@@ -68,7 +50,6 @@ export default function StepDownload({
         One final AI pass to tailor your CV to the job. Takes about 10 seconds.
       </p>
 
-      {/* Idle */}
       {status === "idle" && (
         <div className="space-y-4">
           <button onClick={handleGenerate}
@@ -87,7 +68,6 @@ export default function StepDownload({
         </div>
       )}
 
-      {/* Generating */}
       {status === "generating" && (
         <div className="flex items-center gap-4 px-8 py-4 border border-[#2E2E2E]">
           <RefreshCw size={16} className="animate-spin" style={{ color: "#FF4D00" }} aria-hidden="true" />
@@ -97,45 +77,28 @@ export default function StepDownload({
         </div>
       )}
 
-      {/* Done */}
       {status === "done" && docxBlob && (
         <div className="space-y-5">
           <div className="flex items-center gap-3 p-4 border border-[#2E2E2E]">
             <CheckCircle size={18} style={{ color: "#FF4D00" }} aria-hidden="true" />
-            <span className="text-sm text-[#F5F0EB]">{filename}</span>
+            <span className="text-sm text-[#F5F0EB]">CV_{safeName}.docx</span>
           </div>
-
-          {/* Download buttons */}
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={handleDownloadDocx}
+            <button onClick={handleDownload}
               className="group inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
               style={{ fontFamily: "var(--font-body)" }}>
               <Download size={15} aria-hidden="true" />
               Download .docx
             </button>
-
-            <button onClick={handleDownloadPdf} disabled={pdfLoading}
-              className="group inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-[#F5F0EB] border border-[#2E2E2E] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors duration-200 disabled:opacity-50"
-              style={{ fontFamily: "var(--font-body)" }}>
-              {pdfLoading
-                ? <><RefreshCw size={14} className="animate-spin" /> Converting…</>
-                : <><FileText size={15} aria-hidden="true" /> Download .pdf</>}
-            </button>
-
             <button onClick={handleGenerate}
               className="px-6 py-3 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
               style={{ fontFamily: "var(--font-body)" }}>
               Regenerate
             </button>
           </div>
-
-          {pdfError && (
-            <p className="text-xs text-red-400">{pdfError}</p>
-          )}
         </div>
       )}
 
-      {/* Error */}
       {status === "error" && (
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-4 border border-red-900 bg-red-950/30">
@@ -149,8 +112,7 @@ export default function StepDownload({
             <button onClick={handleGenerate}
               className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
               style={{ fontFamily: "var(--font-body)" }}>
-              Try again
-              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              Try again →
             </button>
             <button onClick={onBack}
               className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
