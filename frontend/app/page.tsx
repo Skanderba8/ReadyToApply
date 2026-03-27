@@ -11,12 +11,7 @@ export default function LandingPage() {
   return (
     <main className="min-h-dvh bg-[#111111] text-[#F5F0EB] overflow-hidden">
 
-      <nav className="flex items-center justify-between px-6 md:px-12 py-6 pt-16">
-        <span className="flex items-center gap-2 font-display text-lg font-800 tracking-tight"
-          style={{ fontFamily: "var(--font-display)" }}>
-          <img src="/logo.png" alt="" width={24} height={24} aria-hidden="true" />
-          ReadyToApply
-        </span>
+      <nav className="flex items-center justify-end px-6 md:px-12 py-6 pt-16">
         <button onClick={() => router.push("/build")}
           className="text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors duration-200">
           {u("launchApp")}
