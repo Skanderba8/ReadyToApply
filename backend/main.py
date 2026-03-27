@@ -2,9 +2,14 @@ import os
 import json
 import time
 import logging
+import tempfile
+from collections import defaultdict
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -204,3 +209,70 @@ async def generate(
             status_code=500,
             detail="Something went wrong while generating your CV. Please try again.",
         )
+
+
+@app.post("/generate-pdf")
+async def generate_pdf(
+    cv_data: str = Form(...),
+    job_description: str = Form(...),
+    template: str = Form(default="classic"),
+    keywords: str = Form(default=""),
+):
+    """Same as /generate but returns a PDF file."""
+    job_description = _validate_job_description(job_description)
+
+    try:
+        raw = json.loads(cv_data)
+        profile = CVProfile(**raw)
+    except (json.JSONDecodeError, Exception) as e:
+        raise HTTPException(status_code=422, detail=f"Invalid CV data: {e}")
+
+    parsed_keywords = None
+    if keywords:
+        try:
+            parsed_keywords = json.loads(keywords)
+        except json.JSONDecodeError:
+            pass
+
+    VALID_TEMPLATES = {"classic", "modern", "compact"}
+    if template not in VALID_TEMPLATES:
+        template = "classic"
+
+    try:
+        tailored = tailor_cv(profile, job_description, keywords=parsed_keywords)
+
+        from services.renderer import render_cv
+        docx_bytes = render_cv(tailored, template_name=template)
+
+        safe_name = tailored.name.replace(" ", "_").replace("/", "_")
+        filename = f"CV_{safe_name}.pdf"
+
+        # Convert docx → pdf using docx2pdf
+        try:
+            from docx2pdf import convert
+            with tempfile.TemporaryDirectory() as tmpdir:
+                docx_path = os.path.join(tmpdir, "cv.docx")
+                pdf_path = os.path.join(tmpdir, "cv.pdf")
+                with open(docx_path, "wb") as f:
+                    f.write(docx_bytes)
+                convert(docx_path, pdf_path)
+                with open(pdf_path, "rb") as f:
+                    pdf_bytes = f.read()
+        except Exception as conv_err:
+            logger.error("PDF conversion failed: %s", conv_err)
+            raise HTTPException(status_code=500, detail="PDF conversion failed. Try downloading as .docx instead.")
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning("Generate-pdf failed (422): %s", e)
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("Generate-pdf unexpected error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Something went wrong generating your PDF.")

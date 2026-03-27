@@ -1,12 +1,211 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RefreshCw, AlertCircle, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { RefreshCw, AlertCircle, Plus, X, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { extractCV, CVData, Keywords } from "@/lib/api";
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type SectionId = "basics" | "contact" | "experience" | "education" | "skills"
+  | "certifications" | "languages" | "projects" | "keywords";
+
+interface SectionDef {
+  id: SectionId;
+  label: (cv: CVData) => string;
+  optional?: boolean;
+}
+
+const LANGUAGE_LEVELS = ["Native", "Fluent", "Professional", "Intermediate", "Basic",
+  "Natif", "Courant", "Professionnel", "Intermédiaire", "Notions"];
+
+// ─── i18n labels ─────────────────────────────────────────────────────────────
+
+function t(key: string, lang: "en" | "fr"): string {
+  const labels: Record<string, Record<string, string>> = {
+    reviewing: { en: "Review your CV", fr: "Vérifiez votre CV" },
+    reviewSub: { en: "Check everything looks right. Edit any field before generating.", fr: "Vérifiez que tout est correct. Modifiez avant de générer." },
+    basics: { en: "Basics", fr: "Informations générales" },
+    contact: { en: "Contact", fr: "Contact" },
+    experience: { en: "Experience", fr: "Expérience" },
+    education: { en: "Education", fr: "Formation" },
+    skills: { en: "Skills", fr: "Compétences" },
+    certifications: { en: "Certifications", fr: "Certifications" },
+    languages: { en: "Languages", fr: "Langues" },
+    projects: { en: "Projects", fr: "Projets" },
+    keywords: { en: "Job Keywords", fr: "Mots-clés du poste" },
+    fullName: { en: "Full name", fr: "Nom complet" },
+    profTitle: { en: "Professional title", fr: "Titre professionnel" },
+    summary: { en: "Summary", fr: "Résumé" },
+    email: { en: "Email", fr: "Email" },
+    phone: { en: "Phone", fr: "Téléphone" },
+    location: { en: "Location", fr: "Localisation" },
+    linkedin: { en: "LinkedIn URL", fr: "URL LinkedIn" },
+    company: { en: "Company", fr: "Entreprise" },
+    title: { en: "Title", fr: "Titre" },
+    start: { en: "Start", fr: "Début" },
+    end: { en: "End", fr: "Fin" },
+    bullets: { en: "Bullets", fr: "Points" },
+    addBullet: { en: "Add bullet", fr: "Ajouter un point" },
+    addExperience: { en: "Add experience", fr: "Ajouter une expérience" },
+    addEducation: { en: "Add formation", fr: "Ajouter une formation" },
+    addCert: { en: "Add certification", fr: "Ajouter une certification" },
+    addLanguage: { en: "Add language", fr: "Ajouter une langue" },
+    addProject: { en: "Add project", fr: "Ajouter un projet" },
+    addSkill: { en: "Add skill", fr: "Ajouter une compétence" },
+    remove: { en: "Remove", fr: "Supprimer" },
+    institution: { en: "Institution", fr: "Établissement" },
+    degree: { en: "Degree", fr: "Diplôme" },
+    field: { en: "Field of study", fr: "Domaine d'études" },
+    year: { en: "Year", fr: "Année" },
+    issuer: { en: "Issuer", fr: "Organisme" },
+    language: { en: "Language", fr: "Langue" },
+    level: { en: "Level", fr: "Niveau" },
+    projName: { en: "Project name", fr: "Nom du projet" },
+    projDesc: { en: "Description", fr: "Description" },
+    projUrl: { en: "URL", fr: "URL" },
+    looksGood: { en: "Looks good — choose template", fr: "C'est bon — choisir le modèle" },
+    back: { en: "← Back", fr: "← Retour" },
+    keywordsSub: { en: "Keywords extracted from the job description. The AI uses these when tailoring.", fr: "Mots-clés extraits de l'offre d'emploi. L'IA les utilise pour adapter votre CV." },
+    technical: { en: "Technical", fr: "Technique" },
+    soft: { en: "Soft skills", fr: "Savoir-être" },
+    industry: { en: "Industry", fr: "Secteur" },
+    add: { en: "Add", fr: "Ajouter" },
+    dragHint: { en: "Drag sections to reorder", fr: "Glissez les sections pour les réorganiser" },
+    enableSection: { en: "Enable section", fr: "Activer la section" },
+  };
+  return labels[key]?.[lang] ?? labels[key]?.["en"] ?? key;
+}
+
+// ─── Small UI components ──────────────────────────────────────────────────────
+
+function Field({ label, value, onChange, multiline = false, maxLength }: {
+  label: string; value: string; onChange: (v: string) => void;
+  multiline?: boolean; maxLength?: number;
+}) {
+  const base = "w-full bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors";
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-[#9A9A9A]">{label}</label>
+      {multiline
+        ? <textarea className={`${base} resize-y min-h-[80px]`} value={value}
+            onChange={e => onChange(e.target.value)} maxLength={maxLength} />
+        : <input type="text" className={base} value={value}
+            onChange={e => onChange(e.target.value)} maxLength={maxLength} />}
+      {maxLength && <p className="text-xs text-[#9A9A9A] text-right">{value.length} / {maxLength}</p>}
+    </div>
+  );
+}
+
+function Pill({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1C1C1C] border border-[#2E2E2E] text-xs text-[#F5F0EB] rounded-sm">
+      {label}
+      <button onClick={onRemove} className="text-[#9A9A9A] hover:text-[#FF4D00] transition-colors ml-0.5" aria-label={`Remove ${label}`}>
+        <X size={10} />
+      </button>
+    </span>
+  );
+}
+
+function AddPill({ placeholder, onAdd }: { placeholder: string; onAdd: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const commit = () => {
+    const t = value.trim();
+    if (t) onAdd(t);
+    setValue(""); setEditing(false);
+  };
+  if (!editing)
+    return (
+      <button onClick={() => setEditing(true)}
+        className="inline-flex items-center gap-1 px-2.5 py-1 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors rounded-sm">
+        <Plus size={10} /> {placeholder}
+      </button>
+    );
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input autoFocus type="text" value={value} onChange={e => setValue(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        className="bg-[#1C1C1C] border border-[#FF4D00] text-[#F5F0EB] text-xs px-2 py-1 w-32 focus:outline-none rounded-sm"
+        placeholder="…" />
+      <button onClick={commit} className="text-xs text-[#FF4D00] px-1">✓</button>
+    </span>
+  );
+}
+
+function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button onClick={() => onChange(!enabled)}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? "bg-[#FF4D00]" : "bg-[#2E2E2E]"}`}
+      aria-label={label}>
+      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-[#F5F0EB] shadow transition-transform ${enabled ? "translate-x-4" : "translate-x-1"}`} />
+    </button>
+  );
+}
+
+// ─── Sortable section wrapper ─────────────────────────────────────────────────
+
+function SortableSection({ id, title, children, defaultOpen = false, rightSlot }: {
+  id: string; title: string; children: React.ReactNode;
+  defaultOpen?: boolean; rightSlot?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}
+      className="border border-[#2E2E2E] bg-[#161616] overflow-hidden">
+      <div className="flex items-center bg-[#1C1C1C] border-b border-[#2E2E2E]">
+        {/* drag handle */}
+        <button {...attributes} {...listeners}
+          className="px-3 py-3 text-[#444444] hover:text-[#9A9A9A] cursor-grab active:cursor-grabbing touch-none"
+          aria-label="Drag to reorder">
+          <GripVertical size={14} />
+        </button>
+        {/* toggle open */}
+        <button onClick={() => setOpen(o => !o)}
+          className="flex-1 flex items-center justify-between pr-4 py-3 text-left">
+          <span className="text-sm font-semibold text-[#F5F0EB]">{title}</span>
+          <div className="flex items-center gap-3">
+            {rightSlot}
+            {open ? <ChevronUp size={14} className="text-[#9A9A9A]" /> : <ChevronDown size={14} className="text-[#9A9A9A]" />}
+          </div>
+        </button>
+      </div>
+      {open && <div className="px-4 pb-4 pt-3 space-y-4">{children}</div>}
+    </div>
+  );
+}
+
+// ─── Language detection ───────────────────────────────────────────────────────
+
+function detectLang(jobDescription: string): "en" | "fr" {
+  const frWords = ["le ", "la ", "les ", "de ", "du ", "des ", "et ", "en ", "pour ", "avec ",
+    "nous ", "vous ", "dans ", "sur ", "une ", "un ", "est ", "sont ", "être ", "avoir ",
+    "poste ", "emploi ", "entreprise ", "équipe ", "expérience ", "compétences "];
+  const text = jobDescription.toLowerCase();
+  const frCount = frWords.filter(w => text.includes(w)).length;
+  return frCount >= 4 ? "fr" : "en";
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
 interface StepReviewProps {
   file: File | null;
   pastedText: string;
@@ -15,190 +214,70 @@ interface StepReviewProps {
   onBack: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Small reusable UI pieces
-// ---------------------------------------------------------------------------
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      className="text-xs font-semibold uppercase tracking-widest text-[#9A9A9A] mb-3"
-      style={{ fontFamily: "var(--font-display)" }}
-    >
-      {children}
-    </p>
-  );
-}
+// ─── Main component ───────────────────────────────────────────────────────────
 
-function Field({
-  label,
-  value,
-  onChange,
-  multiline = false,
-  maxLength,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  multiline?: boolean;
-  maxLength?: number;
-}) {
-  const base =
-    "w-full bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors";
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-[#9A9A9A]">{label}</label>
-      {multiline ? (
-        <textarea
-          className={`${base} resize-y min-h-[80px]`}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          maxLength={maxLength}
-        />
-      ) : (
-        <input
-          type="text"
-          className={base}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          maxLength={maxLength}
-        />
-      )}
-      {maxLength && (
-        <p className="text-xs text-[#9A9A9A] text-right">
-          {value.length} / {maxLength}
-        </p>
-      )}
-    </div>
-  );
-}
+export default function StepReview({ file, pastedText, jobDescription, onNext, onBack }: StepReviewProps) {
+  const lang = detectLang(jobDescription);
 
-function Pill({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 bg-[#1C1C1C] border border-[#2E2E2E] text-xs text-[#F5F0EB]">
-      {label}
-      <button
-        onClick={onRemove}
-        className="text-[#9A9A9A] hover:text-[#FF4D00] transition-colors"
-        aria-label={`Remove ${label}`}
-      >
-        <X size={11} />
-      </button>
-    </span>
-  );
-}
-
-function AddPill({ onAdd }: { onAdd: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-
-  const commit = () => {
-    const trimmed = value.trim();
-    if (trimmed) onAdd(trimmed);
-    setValue("");
-    setEditing(false);
-  };
-
-  if (!editing)
-    return (
-      <button
-        onClick={() => setEditing(true)}
-        className="inline-flex items-center gap-1 px-2 py-1 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors"
-      >
-        <Plus size={11} /> Add
-      </button>
-    );
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <input
-        autoFocus
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setEditing(false);
-        }}
-        className="bg-[#1C1C1C] border border-[#FF4D00] text-[#F5F0EB] text-xs px-2 py-1 w-32 focus:outline-none"
-        placeholder="Enter…"
-      />
-      <button onClick={commit} className="text-xs text-[#FF4D00] px-1">
-        ✓
-      </button>
-    </span>
-  );
-}
-
-// Collapsible section wrapper
-function Section({
-  title,
-  children,
-  defaultOpen = true,
-}: {
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-[#2E2E2E]">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#1C1C1C] transition-colors"
-      >
-        <span
-          className="text-sm font-semibold text-[#F5F0EB]"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {title}
-        </span>
-        {open ? (
-          <ChevronUp size={14} className="text-[#9A9A9A]" />
-        ) : (
-          <ChevronDown size={14} className="text-[#9A9A9A]" />
-        )}
-      </button>
-      {open && <div className="px-4 pb-4 pt-2 space-y-4">{children}</div>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-export default function StepReview({
-  file,
-  pastedText,
-  jobDescription,
-  onNext,
-  onBack,
-}: StepReviewProps) {
   type LoadState = "loading" | "ready" | "error";
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
-
   const [cv, setCv] = useState<CVData | null>(null);
-  const [keywords, setKeywords] = useState<Keywords>({
-    technical: [],
-    soft: [],
-    industry: [],
+  const [keywords, setKeywords] = useState<Keywords>({ technical: [], soft: [], industry: [] });
+
+  // Section order + optional section toggles
+  const allSections: SectionDef[] = [
+    { id: "basics", label: () => t("basics", lang) },
+    { id: "contact", label: () => t("contact", lang) },
+    { id: "experience", label: (cv) => `${t("experience", lang)} (${cv.experience.length})` },
+    { id: "education", label: (cv) => `${t("education", lang)} (${cv.education.length})` },
+    { id: "skills", label: (cv) => `${t("skills", lang)} (${cv.skills.length}/12)` },
+    { id: "certifications", label: (cv) => `${t("certifications", lang)} (${cv.certifications.length})` },
+    { id: "languages", label: (cv) => `${t("languages", lang)} (${cv.languages.length})`, optional: true },
+    { id: "projects", label: (cv) => `${t("projects", lang)} (${cv.projects.length})`, optional: true },
+    { id: "keywords", label: () => t("keywords", lang) },
+  ];
+
+  const [sectionOrder, setSectionOrder] = useState<SectionId[]>(
+    allSections.map(s => s.id)
+  );
+  const [enabledOptional, setEnabledOptional] = useState<Record<string, boolean>>({
+    languages: false,
+    projects: false,
   });
 
-  // Run extraction once on mount
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSectionOrder(prev => {
+        const oldIdx = prev.indexOf(active.id as SectionId);
+        const newIdx = prev.indexOf(over.id as SectionId);
+        return arrayMove(prev, oldIdx, newIdx);
+      });
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const result = await extractCV(file, pastedText, jobDescription);
         if (!cancelled) {
-          setCv(result.cv);
+          // Ensure new fields exist
+          const cv = {
+            ...result.cv,
+            languages: result.cv.languages ?? [],
+            projects: result.cv.projects ?? [],
+          };
+          setCv(cv);
           setKeywords(result.keywords);
+          // Auto-enable optional sections if data was found
+          setEnabledOptional({
+            languages: (cv.languages?.length ?? 0) > 0,
+            projects: (cv.projects?.length ?? 0) > 0,
+          });
           setLoadState("ready");
         }
       } catch (e) {
@@ -211,384 +290,337 @@ export default function StepReview({
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---------------------------------------------------------------------------
-  // CV field updaters
-  // ---------------------------------------------------------------------------
-  const updateContact = (field: keyof CVData["contact"], value: string) =>
-    setCv((prev) => prev ? { ...prev, contact: { ...prev.contact, [field]: value } } : prev);
+  // ── Updaters ────────────────────────────────────────────────────────────────
 
-  const updateExperience = (i: number, field: keyof CVData["experience"][0], value: string) =>
-    setCv((prev) => {
-      if (!prev) return prev;
-      const exp = [...prev.experience];
-      exp[i] = { ...exp[i], [field]: value };
-      return { ...prev, experience: exp };
-    });
-
-  const updateExpBullet = (ei: number, bi: number, value: string) =>
-    setCv((prev) => {
-      if (!prev) return prev;
-      const exp = [...prev.experience];
-      const bullets = [...exp[ei].bullets];
-      bullets[bi] = value;
-      exp[ei] = { ...exp[ei], bullets };
-      return { ...prev, experience: exp };
-    });
-
+  const upd = (patch: Partial<CVData>) => setCv(prev => prev ? { ...prev, ...patch } : prev);
+  const updContact = (f: keyof CVData["contact"] | "github", v: string) =>
+    setCv(prev => prev ? { ...prev, contact: { ...prev.contact, [f]: v } } : prev);
+  const updExp = (i: number, f: keyof CVData["experience"][0], v: string) =>
+    setCv(prev => { if (!prev) return prev; const e = [...prev.experience]; e[i] = { ...e[i], [f]: v }; return { ...prev, experience: e }; });
+  const updExpBullet = (ei: number, bi: number, v: string) =>
+    setCv(prev => { if (!prev) return prev; const e = [...prev.experience]; const b = [...e[ei].bullets]; b[bi] = v; e[ei] = { ...e[ei], bullets: b }; return { ...prev, experience: e }; });
   const addExpBullet = (ei: number) =>
-    setCv((prev) => {
-      if (!prev) return prev;
-      const exp = [...prev.experience];
-      if (exp[ei].bullets.length >= 4) return prev;
-      exp[ei] = { ...exp[ei], bullets: [...exp[ei].bullets, ""] };
-      return { ...prev, experience: exp };
-    });
-
+    setCv(prev => { if (!prev || prev.experience[ei].bullets.length >= 6) return prev; const e = [...prev.experience]; e[ei] = { ...e[ei], bullets: [...e[ei].bullets, ""] }; return { ...prev, experience: e }; });
   const removeExpBullet = (ei: number, bi: number) =>
-    setCv((prev) => {
-      if (!prev) return prev;
-      const exp = [...prev.experience];
-      exp[ei] = { ...exp[ei], bullets: exp[ei].bullets.filter((_, j) => j !== bi) };
-      return { ...prev, experience: exp };
-    });
+    setCv(prev => { if (!prev) return prev; const e = [...prev.experience]; e[ei] = { ...e[ei], bullets: e[ei].bullets.filter((_, j) => j !== bi) }; return { ...prev, experience: e }; });
+  const updEdu = (i: number, f: keyof CVData["education"][0], v: string) =>
+    setCv(prev => { if (!prev) return prev; const e = [...prev.education]; e[i] = { ...e[i], [f]: v }; return { ...prev, education: e }; });
+  const updCert = (i: number, f: keyof CVData["certifications"][0], v: string) =>
+    setCv(prev => { if (!prev) return prev; const c = [...prev.certifications]; c[i] = { ...c[i], [f]: v }; return { ...prev, certifications: c }; });
+  const updLang = (i: number, f: "language" | "level", v: string) =>
+    setCv(prev => { if (!prev) return prev; const l = [...prev.languages]; l[i] = { ...l[i], [f]: v }; return { ...prev, languages: l }; });
+  const updProj = (i: number, f: keyof CVData["projects"][0], v: string) =>
+    setCv(prev => { if (!prev) return prev; const p = [...prev.projects]; p[i] = { ...p[i], [f]: v }; return { ...prev, projects: p }; });
 
-  const addExperience = () =>
-    setCv((prev) =>
-      prev
-        ? {
-            ...prev,
-            experience: [
-              ...prev.experience,
-              { company: "", title: "", location: "", start: "", end: "", bullets: [""] },
-            ],
-          }
-        : prev
-    );
+  const addSkill = (v: string) => setCv(prev => prev && prev.skills.length < 12 ? { ...prev, skills: [...prev.skills, v] } : prev);
+  const removeSkill = (i: number) => setCv(prev => prev ? { ...prev, skills: prev.skills.filter((_, j) => j !== i) } : prev);
+  const addKw = (b: keyof Keywords, v: string) => setKeywords(k => ({ ...k, [b]: [...k[b], v] }));
+  const removeKw = (b: keyof Keywords, i: number) => setKeywords(k => ({ ...k, [b]: k[b].filter((_, j) => j !== i) }));
 
-  const removeExperience = (i: number) =>
-    setCv((prev) =>
-      prev ? { ...prev, experience: prev.experience.filter((_, j) => j !== i) } : prev
-    );
+  // ── Loading / error states ───────────────────────────────────────────────────
 
-  const updateEducation = (i: number, field: keyof CVData["education"][0], value: string) =>
-    setCv((prev) => {
-      if (!prev) return prev;
-      const edu = [...prev.education];
-      edu[i] = { ...edu[i], [field]: value };
-      return { ...prev, education: edu };
-    });
+  if (loadState === "loading") return (
+    <div className="animate-fade-up">
+      <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
+        {lang === "fr" ? "Analyse de votre profil…" : "Analysing your profile…"}
+      </h2>
+      <p className="text-[#9A9A9A] mb-10 text-sm">
+        {lang === "fr" ? "Extraction de votre expérience. Environ 15 secondes." : "Extracting your experience and matching it to the job. Takes about 15 seconds."}
+      </p>
+      <div className="flex items-center gap-4 px-8 py-4 border border-[#2E2E2E]">
+        <RefreshCw size={16} className="animate-spin" style={{ color: "#FF4D00" }} />
+        <span className="text-sm text-[#F5F0EB] animate-pulse">
+          {lang === "fr" ? "Lecture de votre CV et de l'offre d'emploi…" : "Reading your CV and job description…"}
+        </span>
+      </div>
+    </div>
+  );
 
-  const addEducation = () =>
-    setCv((prev) =>
-      prev
-        ? {
-            ...prev,
-            education: [...prev.education, { institution: "", degree: "", field: "", year: "" }],
-          }
-        : prev
-    );
-
-  const removeEducation = (i: number) =>
-    setCv((prev) =>
-      prev ? { ...prev, education: prev.education.filter((_, j) => j !== i) } : prev
-    );
-
-  const updateCert = (i: number, field: keyof CVData["certifications"][0], value: string) =>
-    setCv((prev) => {
-      if (!prev) return prev;
-      const certs = [...prev.certifications];
-      certs[i] = { ...certs[i], [field]: value };
-      return { ...prev, certifications: certs };
-    });
-
-  const addCert = () =>
-    setCv((prev) =>
-      prev
-        ? { ...prev, certifications: [...prev.certifications, { name: "", issuer: "", year: "" }] }
-        : prev
-    );
-
-  const removeCert = (i: number) =>
-    setCv((prev) =>
-      prev ? { ...prev, certifications: prev.certifications.filter((_, j) => j !== i) } : prev
-    );
-
-  // Skills
-  const addSkill = (v: string) =>
-    setCv((prev) =>
-      prev && prev.skills.length < 12 ? { ...prev, skills: [...prev.skills, v] } : prev
-    );
-  const removeSkill = (i: number) =>
-    setCv((prev) =>
-      prev ? { ...prev, skills: prev.skills.filter((_, j) => j !== i) } : prev
-    );
-
-  // Keywords
-  const addKeyword = (bucket: keyof Keywords, v: string) =>
-    setKeywords((k) => ({ ...k, [bucket]: [...k[bucket], v] }));
-  const removeKeyword = (bucket: keyof Keywords, i: number) =>
-    setKeywords((k) => ({ ...k, [bucket]: k[bucket].filter((_, j) => j !== i) }));
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-  if (loadState === "loading") {
-    return (
-      <div className="animate-fade-up">
-        <h2
-          className="text-3xl md:text-4xl font-bold mb-2"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Analysing your profile…
-        </h2>
-        <p className="text-[#9A9A9A] mb-10 text-sm">
-          Extracting your experience and matching it to the job. Takes about 15 seconds.
-        </p>
-        <div className="flex items-center gap-4 px-8 py-4 border border-[#2E2E2E]">
-          <RefreshCw size={16} className="animate-spin" style={{ color: "#FF4D00" }} />
-          <span className="text-sm text-[#F5F0EB] animate-pulse">
-            Reading your CV and job description…
-          </span>
+  if (loadState === "error") return (
+    <div className="animate-fade-up space-y-4">
+      <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
+        {lang === "fr" ? "Une erreur est survenue" : "Something went wrong"}
+      </h2>
+      <div className="flex items-start gap-3 p-4 border border-red-900 bg-red-950/30">
+        <AlertCircle size={18} className="text-red-400 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-red-400 mb-1">{lang === "fr" ? "Échec de l'extraction" : "Extraction failed"}</p>
+          <p className="text-xs text-red-400/70">{errorMessage}</p>
         </div>
       </div>
-    );
-  }
-
-  if (loadState === "error") {
-    return (
-      <div className="animate-fade-up space-y-4">
-        <h2
-          className="text-3xl md:text-4xl font-bold mb-2"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Something went wrong
-        </h2>
-        <div className="flex items-start gap-3 p-4 border border-red-900 bg-red-950/30">
-          <AlertCircle size={18} className="text-red-400 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-red-400 mb-1">Extraction failed</p>
-            <p className="text-xs text-red-400/70">{errorMessage}</p>
-          </div>
-        </div>
-        <button
-          onClick={onBack}
-          className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          ← Back
-        </button>
-      </div>
-    );
-  }
+      <button onClick={onBack} className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]">
+        {t("back", lang)}
+      </button>
+    </div>
+  );
 
   if (!cv) return null;
 
-  return (
-    <div className="animate-fade-up space-y-6">
-      <div>
-        <h2
-          className="text-3xl md:text-4xl font-bold mb-2"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Review your CV
-        </h2>
-        <p className="text-[#9A9A9A] text-sm">
-          Check everything looks right. Edit any field before generating.
-        </p>
+  // ── Section renderers ────────────────────────────────────────────────────────
+
+  const sectionContent: Record<SectionId, React.ReactNode> = {
+    basics: (
+      <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label={t("fullName", lang)} value={cv.name} onChange={v => upd({ name: v })} />
+          <Field label={t("profTitle", lang)} value={cv.title} onChange={v => upd({ title: v })} />
+        </div>
+        <Field label={t("summary", lang)} value={cv.summary} onChange={v => upd({ summary: v })} multiline maxLength={800} />
+      </>
+    ),
+    contact: (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Email" value={cv.contact.email} onChange={v => updContact("email", v)} />
+        <Field label="Phone" value={cv.contact.phone} onChange={v => updContact("phone", v)} />
+        <Field label="Location" value={cv.contact.location} onChange={v => updContact("location", v)} />
+        <Field label="LinkedIn URL" value={cv.contact.linkedin ?? ""} onChange={v => updContact("linkedin", v)} />
+        <Field label="GitHub URL" value={cv.contact.github ?? ""} onChange={v => updContact("github", v)} />
       </div>
-
-      {/* ── Basics ── */}
-      <Section title="Basics">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Full name" value={cv.name} onChange={(v) => setCv({ ...cv, name: v })} />
-          <Field label="Professional title" value={cv.title} onChange={(v) => setCv({ ...cv, title: v })} />
-        </div>
-        <Field
-          label="Summary"
-          value={cv.summary}
-          onChange={(v) => setCv({ ...cv, summary: v })}
-          multiline
-          maxLength={800}
-        />
-      </Section>
-
-      {/* ── Contact ── */}
-      <Section title="Contact" defaultOpen={false}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Email" value={cv.contact.email} onChange={(v) => updateContact("email", v)} />
-          <Field label="Phone" value={cv.contact.phone} onChange={(v) => updateContact("phone", v)} />
-          <Field label="Location" value={cv.contact.location} onChange={(v) => updateContact("location", v)} />
-          <Field label="LinkedIn URL" value={cv.contact.linkedin ?? ""} onChange={(v) => updateContact("linkedin", v)} />
-        </div>
-      </Section>
-
-      {/* ── Experience ── */}
-      <Section title={`Experience (${cv.experience.length})`}>
-        <div className="space-y-5">
-          {cv.experience.map((job, ei) => (
-            <div key={ei} className="border border-[#2E2E2E] p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#9A9A9A]">Role {ei + 1}</span>
-                <button
-                  onClick={() => removeExperience(ei)}
-                  className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1"
-                >
-                  <X size={11} /> Remove
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Company" value={job.company} onChange={(v) => updateExperience(ei, "company", v)} />
-                <Field label="Title" value={job.title} onChange={(v) => updateExperience(ei, "title", v)} />
-                <Field label="Location" value={job.location} onChange={(v) => updateExperience(ei, "location", v)} />
-                <Field label="Start" value={job.start} onChange={(v) => updateExperience(ei, "start", v)} />
-                <Field label="End" value={job.end} onChange={(v) => updateExperience(ei, "end", v)} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-[#9A9A9A]">Bullets (max 4)</label>
-                {job.bullets.map((b, bi) => (
-                  <div key={bi} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={b}
-                      onChange={(e) => updateExpBullet(ei, bi, e.target.value)}
-                      className="flex-1 bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors"
-                    />
-                    <button
-                      onClick={() => removeExpBullet(ei, bi)}
-                      className="text-[#9A9A9A] hover:text-red-400 transition-colors px-2"
-                      aria-label="Remove bullet"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-                {job.bullets.length < 4 && (
-                  <button
-                    onClick={() => addExpBullet(ei)}
-                    className="text-xs text-[#9A9A9A] hover:text-[#FF4D00] transition-colors flex items-center gap-1 mt-1"
-                  >
-                    <Plus size={11} /> Add bullet
-                  </button>
-                )}
-              </div>
+    ),
+    experience: (
+      <div className="space-y-4">
+        {cv.experience.map((job, ei) => (
+          <div key={ei} className="border border-[#2E2E2E] p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[#9A9A9A]">{lang === "fr" ? `Poste ${ei + 1}` : `Role ${ei + 1}`}</span>
+              <button onClick={() => upd({ experience: cv.experience.filter((_, j) => j !== ei) })}
+                className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
+                <X size={11} /> {t("remove", lang)}
+              </button>
             </div>
-          ))}
-          <button
-            onClick={addExperience}
-            className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2"
-          >
-            <Plus size={13} /> Add experience
-          </button>
-        </div>
-      </Section>
-
-      {/* ── Education ── */}
-      <Section title={`Education (${cv.education.length})`} defaultOpen={false}>
-        <div className="space-y-4">
-          {cv.education.map((edu, i) => (
-            <div key={i} className="border border-[#2E2E2E] p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#9A9A9A]">Entry {i + 1}</span>
-                <button
-                  onClick={() => removeEducation(i)}
-                  className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1"
-                >
-                  <X size={11} /> Remove
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Institution" value={edu.institution} onChange={(v) => updateEducation(i, "institution", v)} />
-                <Field label="Degree" value={edu.degree} onChange={(v) => updateEducation(i, "degree", v)} />
-                <Field label="Field of study" value={edu.field} onChange={(v) => updateEducation(i, "field", v)} />
-                <Field label="Year" value={edu.year} onChange={(v) => updateEducation(i, "year", v)} />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label={t("company", lang)} value={job.company} onChange={v => updExp(ei, "company", v)} />
+              <Field label={t("title", lang)} value={job.title} onChange={v => updExp(ei, "title", v)} />
+              <Field label={t("location", lang)} value={job.location} onChange={v => updExp(ei, "location", v)} />
+              <Field label={t("start", lang)} value={job.start} onChange={v => updExp(ei, "start", v)} />
+              <Field label={t("end", lang)} value={job.end} onChange={v => updExp(ei, "end", v)} />
             </div>
-          ))}
-          <button
-            onClick={addEducation}
-            className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2"
-          >
-            <Plus size={13} /> Add education
-          </button>
-        </div>
-      </Section>
-
-      {/* ── Skills ── */}
-      <Section title={`Skills (${cv.skills.length}/12)`} defaultOpen={true}>
-        <div className="flex flex-wrap gap-2">
-          {cv.skills.map((s, i) => (
-            <Pill key={i} label={s} onRemove={() => removeSkill(i)} />
-          ))}
-          {cv.skills.length < 12 && <AddPill onAdd={addSkill} />}
-        </div>
-      </Section>
-
-      {/* ── Certifications ── */}
-      {(cv.certifications.length > 0) && (
-        <Section title={`Certifications (${cv.certifications.length})`} defaultOpen={false}>
-          <div className="space-y-4">
-            {cv.certifications.map((cert, i) => (
-              <div key={i} className="border border-[#2E2E2E] p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[#9A9A9A]">Cert {i + 1}</span>
-                  <button
-                    onClick={() => removeCert(i)}
-                    className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1"
-                  >
-                    <X size={11} /> Remove
+            <div className="space-y-2">
+              <label className="text-xs text-[#9A9A9A]">{t("bullets", lang)} (max 6)</label>
+              {job.bullets.map((b, bi) => (
+                <div key={bi} className="flex gap-2">
+                  <input type="text" value={b} onChange={e => updExpBullet(ei, bi, e.target.value)}
+                    className="flex-1 bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors" />
+                  <button onClick={() => removeExpBullet(ei, bi)}
+                    className="text-[#9A9A9A] hover:text-red-400 transition-colors px-2" aria-label="Remove bullet">
+                    <X size={13} />
                   </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Name" value={cert.name} onChange={(v) => updateCert(i, "name", v)} />
-                  <Field label="Issuer" value={cert.issuer} onChange={(v) => updateCert(i, "issuer", v)} />
-                  <Field label="Year" value={cert.year} onChange={(v) => updateCert(i, "year", v)} />
-                </div>
-              </div>
-            ))}
-            <button
-              onClick={addCert}
-              className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2"
-            >
-              <Plus size={13} /> Add certification
-            </button>
-          </div>
-        </Section>
-      )}
-
-      {/* ── Keywords ── */}
-      <Section title="Job Keywords" defaultOpen={false}>
-        <p className="text-xs text-[#9A9A9A] mb-3">
-          These keywords were extracted from the job description. The AI will use them when tailoring your CV.
-          Add or remove as needed.
-        </p>
-        {(["technical", "soft", "industry"] as const).map((bucket) => (
-          <div key={bucket} className="mb-4">
-            <SectionLabel>{bucket}</SectionLabel>
-            <div className="flex flex-wrap gap-2">
-              {keywords[bucket].map((k, i) => (
-                <Pill key={i} label={k} onRemove={() => removeKeyword(bucket, i)} />
               ))}
-              <AddPill onAdd={(v) => addKeyword(bucket, v)} />
+              {job.bullets.length < 6 && (
+                <button onClick={() => addExpBullet(ei)}
+                  className="text-xs text-[#9A9A9A] hover:text-[#FF4D00] transition-colors flex items-center gap-1 mt-1">
+                  <Plus size={11} /> {t("addBullet", lang)}
+                </button>
+              )}
             </div>
           </div>
         ))}
-      </Section>
+        <button onClick={() => upd({ experience: [...cv.experience, { company: "", title: "", location: "", start: "", end: "", bullets: [""] }] })}
+          className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
+          <Plus size={13} /> {t("addExperience", lang)}
+        </button>
+      </div>
+    ),
+    education: (
+      <div className="space-y-4">
+        {cv.education.map((edu, i) => (
+          <div key={i} className="border border-[#2E2E2E] rounded-sm p-3 space-y-3 bg-[#1C1C1C]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[#9A9A9A]">{i + 1}</span>
+              <button onClick={() => upd({ education: cv.education.filter((_, j) => j !== i) })}
+                className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
+                <X size={11} /> {t("remove", lang)}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label={t("institution", lang)} value={edu.institution} onChange={v => updEdu(i, "institution", v)} />
+              <Field label={t("degree", lang)} value={edu.degree} onChange={v => updEdu(i, "degree", v)} />
+              <Field label={t("field", lang)} value={edu.field} onChange={v => updEdu(i, "field", v)} />
+              <Field label={t("year", lang)} value={edu.year} onChange={v => updEdu(i, "year", v)} />
+            </div>
+          </div>
+        ))}
+        <button onClick={() => upd({ education: [...cv.education, { institution: "", degree: "", field: "", year: "" }] })}
+          className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
+          <Plus size={13} /> {t("addEducation", lang)}
+        </button>
+      </div>
+    ),
+    skills: (
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {cv.skills.map((s, i) => <Pill key={i} label={s} onRemove={() => removeSkill(i)} />)}
+          {cv.skills.length < 12 && <AddPill placeholder={t("addSkill", lang)} onAdd={addSkill} />}
+        </div>
+        <p className="text-xs text-[#9A9A9A]">{cv.skills.length}/12</p>
+      </div>
+    ),
+    certifications: (
+      <div className="space-y-4">
+        {cv.certifications.map((cert, i) => (
+          <div key={i} className="border border-[#2E2E2E] rounded-sm p-3 space-y-3 bg-[#1C1C1C]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[#9A9A9A]">{i + 1}</span>
+              <button onClick={() => upd({ certifications: cv.certifications.filter((_, j) => j !== i) })}
+                className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
+                <X size={11} /> {t("remove", lang)}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label={t("projName", lang)} value={cert.name} onChange={v => updCert(i, "name", v)} />
+              <Field label={t("issuer", lang)} value={cert.issuer} onChange={v => updCert(i, "issuer", v)} />
+              <Field label={t("year", lang)} value={cert.year} onChange={v => updCert(i, "year", v)} />
+            </div>
+          </div>
+        ))}
+        <button onClick={() => upd({ certifications: [...cv.certifications, { name: "", issuer: "", year: "" }] })}
+          className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
+          <Plus size={13} /> {t("addCert", lang)}
+        </button>
+      </div>
+    ),
+    languages: (
+      <div className="space-y-3">
+        {cv.languages.map((l, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <input type="text" value={l.language} onChange={e => updLang(i, "language", e.target.value)}
+              placeholder={t("language", lang)}
+              className="flex-1 bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors" />
+            <select value={l.level} onChange={e => updLang(i, "level", e.target.value)}
+              className="bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors">
+              {LANGUAGE_LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
+            </select>
+            <button onClick={() => upd({ languages: cv.languages.filter((_, j) => j !== i) })}
+              className="text-[#9A9A9A] hover:text-red-400 transition-colors" aria-label="Remove">
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+        <button onClick={() => upd({ languages: [...cv.languages, { language: "", level: "Fluent" }] })}
+          className="text-xs text-[#9A9A9A] hover:text-[#FF4D00] transition-colors flex items-center gap-1">
+          <Plus size={11} /> {t("addLanguage", lang)}
+        </button>
+      </div>
+    ),
+    projects: (
+      <div className="space-y-4">
+        {cv.projects.map((proj, i) => (
+          <div key={i} className="border border-[#2E2E2E] rounded-sm p-3 space-y-3 bg-[#1C1C1C]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[#9A9A9A]">{i + 1}</span>
+              <button onClick={() => upd({ projects: cv.projects.filter((_, j) => j !== i) })}
+                className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
+                <X size={11} /> {t("remove", lang)}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label={t("projName", lang)} value={proj.name} onChange={v => updProj(i, "name", v)} />
+              <Field label={t("year", lang)} value={proj.year ?? ""} onChange={v => updProj(i, "year", v)} />
+              <Field label="URL" value={proj.url ?? ""} onChange={v => updProj(i, "url", v)} />
+            </div>
+            <Field label={t("projDesc", lang)} value={proj.description} onChange={v => updProj(i, "description", v)} multiline />
+          </div>
+        ))}
+        <button onClick={() => upd({ projects: [...cv.projects, { name: "", description: "", url: "", year: "" }] })}
+          className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
+          <Plus size={13} /> {t("addProject", lang)}
+        </button>
+      </div>
+    ),
+    keywords: (
+      <div className="space-y-4">
+        <p className="text-xs text-[#9A9A9A]">{t("keywordsSub", lang)}</p>
+        {(["technical", "soft", "industry"] as const).map(bucket => (
+          <div key={bucket}>
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#9A9A9A] mb-2">{t(bucket, lang)}</p>
+            <div className="flex flex-wrap gap-2">
+              {keywords[bucket].map((k, i) => <Pill key={i} label={k} onRemove={() => removeKw(bucket, i)} />)}
+              <AddPill placeholder={t("add", lang)} onAdd={v => addKw(bucket, v)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+  };
 
-      {/* ── Actions ── */}
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  const orderedSections = sectionOrder
+    .map(id => allSections.find(s => s.id === id)!)
+    .filter(Boolean);
+
+  return (
+    <div className="animate-fade-up space-y-5">
+      <div>
+        <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
+          {t("reviewing", lang)}
+        </h2>
+        <p className="text-[#9A9A9A] text-sm">{t("reviewSub", lang)}</p>
+        <p className="text-xs text-[#9A9A9A] mt-1 flex items-center gap-1">
+          <GripVertical size={11} /> {t("dragHint", lang)}
+        </p>
+      </div>
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {orderedSections.map(section => {
+              const isOptional = !!section.optional;
+              const isEnabled = !isOptional || enabledOptional[section.id];
+              const label = section.label(cv);
+
+              const rightSlot = isOptional ? (
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-[#9A9A9A]">{t("enableSection", lang)}</span>
+                  <Toggle
+                    enabled={enabledOptional[section.id]}
+                    onChange={v => setEnabledOptional(prev => ({ ...prev, [section.id]: v }))}
+                    label={label}
+                  />
+                </div>
+              ) : undefined;
+
+              return (
+                <SortableSection
+                  key={section.id}
+                  id={section.id}
+                  title={label}
+                  defaultOpen={section.id === "basics"}
+                  rightSlot={rightSlot}
+                >
+                  {isEnabled
+                    ? sectionContent[section.id]
+                    : <p className="text-xs text-[#9A9A9A] italic">
+                        {lang === "fr" ? "Section désactivée. Activez-la pour l'inclure dans votre CV." : "Section disabled. Toggle on to include in your CV."}
+                      </p>
+                  }
+                </SortableSection>
+              );
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
+
       <div className="flex items-center gap-4 pt-2">
-        <button
-          onClick={onBack}
+        <button onClick={onBack}
           className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          ← Back
+          style={{ fontFamily: "var(--font-body)" }}>
+          {t("back", lang)}
         </button>
         <button
-          onClick={() => onNext(cv, keywords)}
+          onClick={() => {
+            // Strip disabled optional sections before proceeding
+            const finalCv = {
+              ...cv,
+              languages: enabledOptional.languages ? cv.languages : [],
+              projects: enabledOptional.projects ? cv.projects : [],
+            };
+            onNext(finalCv, keywords);
+          }}
           className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          Looks good — choose template
+          style={{ fontFamily: "var(--font-body)" }}>
+          {t("looksGood", lang)}
           <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
         </button>
       </div>

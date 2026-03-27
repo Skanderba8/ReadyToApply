@@ -6,6 +6,7 @@ class Contact(BaseModel):
     phone: str
     location: str
     linkedin: Optional[str] = ""
+    github: Optional[str] = ""
 
 class ExperienceItem(BaseModel):
     company: str
@@ -31,6 +32,16 @@ class Certification(BaseModel):
     issuer: str
     year: str
 
+class LanguageItem(BaseModel):
+    language: str
+    level: str  # e.g. "Native", "Fluent", "Professional", "Intermediate", "Basic"
+
+class ProjectItem(BaseModel):
+    name: str
+    description: str
+    url: Optional[str] = ""
+    year: Optional[str] = ""
+
 class CVProfile(BaseModel):
     name: str
     title: str
@@ -40,6 +51,8 @@ class CVProfile(BaseModel):
     education: list[EducationItem]
     skills: list[str]
     certifications: list[Certification]
+    languages: Optional[list[LanguageItem]] = []
+    projects: Optional[list[ProjectItem]] = []
 
     @field_validator("summary")
     @classmethod
@@ -49,4 +62,8 @@ class CVProfile(BaseModel):
     @field_validator("skills")
     @classmethod
     def max_twelve_skills(cls, v):
-        return v[:12]
+        trimmed = v[:12]
+        # Always keep an even count
+        if len(trimmed) % 2 != 0:
+            trimmed = trimmed[:-1]
+        return trimmed

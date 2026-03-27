@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Download, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
-import { generateCV, downloadBlob, CVData, Keywords } from "@/lib/api";
+import { Download, RefreshCw, CheckCircle, AlertCircle, FileText } from "lucide-react";
+import { generateCV, generateCVPdf, downloadBlob, CVData, Keywords } from "@/lib/api";
 
 interface StepDownloadProps {
   cvData: CVData;
@@ -12,34 +12,29 @@ interface StepDownloadProps {
   onBack: () => void;
 }
 
-type Status = "idle" | "tailoring" | "done" | "error";
+type Status = "idle" | "generating" | "done" | "error";
 
 export default function StepDownload({
-  cvData,
-  jobDescription,
-  template,
-  keywords,
-  onBack,
+  cvData, jobDescription, template, keywords, onBack,
 }: StepDownloadProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [cvBlob, setCvBlob] = useState<Blob | null>(null);
+  const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
   const [filename, setFilename] = useState("CV.docx");
 
-  const handleGenerate = async () => {
-    setCvBlob(null);
-    setErrorMessage("");
-    setStatus("tailoring");
+  const safeName = cvData.name.replace(/\s+/g, "_").replace(/\//g, "_");
 
+  const handleGenerate = async () => {
+    setDocxBlob(null);
+    setErrorMessage("");
+    setPdfError("");
+    setStatus("generating");
     try {
       const blob = await generateCV(cvData, jobDescription, template, keywords ?? undefined);
-
-      // Mirror the backend filename logic
-      const safeName = cvData.name.replace(/\s+/g, "_").replace(/\//g, "_");
-      const name = `CV_${safeName}.docx`;
-      setFilename(name);
-
-      setCvBlob(blob);
+      setFilename(`CV_${safeName}.docx`);
+      setDocxBlob(blob);
       setStatus("done");
     } catch (err) {
       setStatus("error");
@@ -47,18 +42,26 @@ export default function StepDownload({
     }
   };
 
-  const handleDownload = () => {
-    if (cvBlob) downloadBlob(cvBlob, filename);
+  const handleDownloadDocx = () => {
+    if (docxBlob) downloadBlob(docxBlob, `CV_${safeName}.docx`);
   };
 
-  const isLoading = status === "tailoring";
+  const handleDownloadPdf = async () => {
+    setPdfLoading(true);
+    setPdfError("");
+    try {
+      const blob = await generateCVPdf(cvData, jobDescription, template, keywords ?? undefined);
+      downloadBlob(blob, `CV_${safeName}.pdf`);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "PDF conversion failed.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   return (
     <div className="animate-fade-up">
-      <h2
-        className="text-3xl md:text-4xl font-bold mb-2"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
+      <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
         Generate your CV
       </h2>
       <p className="text-[#9A9A9A] mb-10 text-sm">
@@ -67,58 +70,68 @@ export default function StepDownload({
 
       {/* Idle */}
       {status === "idle" && (
-        <button
-          onClick={handleGenerate}
-          className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          Generate CV
-          <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-        </button>
+        <div className="space-y-4">
+          <button onClick={handleGenerate}
+            className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
+            style={{ fontFamily: "var(--font-body)" }}>
+            Generate CV
+            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+          </button>
+          <div>
+            <button onClick={onBack}
+              className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
+              style={{ fontFamily: "var(--font-body)" }}>
+              ← Back
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Loading */}
-      {isLoading && (
+      {/* Generating */}
+      {status === "generating" && (
         <div className="flex items-center gap-4 px-8 py-4 border border-[#2E2E2E]">
-          <RefreshCw
-            size={16}
-            className="animate-spin"
-            style={{ color: "#FF4D00" }}
-            aria-hidden="true"
-          />
-          <span
-            className="text-sm text-[#F5F0EB] animate-pulse"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
+          <RefreshCw size={16} className="animate-spin" style={{ color: "#FF4D00" }} aria-hidden="true" />
+          <span className="text-sm text-[#F5F0EB] animate-pulse" style={{ fontFamily: "var(--font-body)" }}>
             Tailoring your CV to the job…
           </span>
         </div>
       )}
 
-      {/* Success */}
-      {status === "done" && cvBlob && (
-        <div className="space-y-4">
+      {/* Done */}
+      {status === "done" && docxBlob && (
+        <div className="space-y-5">
           <div className="flex items-center gap-3 p-4 border border-[#2E2E2E]">
             <CheckCircle size={18} style={{ color: "#FF4D00" }} aria-hidden="true" />
             <span className="text-sm text-[#F5F0EB]">{filename}</span>
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleDownload}
-              className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
-              style={{ fontFamily: "var(--font-body)" }}
-            >
-              <Download size={16} aria-hidden="true" />
-              Download CV
+
+          {/* Download buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={handleDownloadDocx}
+              className="group inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
+              style={{ fontFamily: "var(--font-body)" }}>
+              <Download size={15} aria-hidden="true" />
+              Download .docx
             </button>
-            <button
-              onClick={handleGenerate}
-              className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
-              style={{ fontFamily: "var(--font-body)" }}
-            >
+
+            <button onClick={handleDownloadPdf} disabled={pdfLoading}
+              className="group inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-[#F5F0EB] border border-[#2E2E2E] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors duration-200 disabled:opacity-50"
+              style={{ fontFamily: "var(--font-body)" }}>
+              {pdfLoading
+                ? <><RefreshCw size={14} className="animate-spin" /> Converting…</>
+                : <><FileText size={15} aria-hidden="true" /> Download .pdf</>}
+            </button>
+
+            <button onClick={handleGenerate}
+              className="px-6 py-3 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
+              style={{ fontFamily: "var(--font-body)" }}>
               Regenerate
             </button>
           </div>
+
+          {pdfError && (
+            <p className="text-xs text-red-400">{pdfError}</p>
+          )}
         </div>
       )}
 
@@ -132,27 +145,19 @@ export default function StepDownload({
               <p className="text-xs text-red-400/70">{errorMessage}</p>
             </div>
           </div>
-          <button
-            onClick={handleGenerate}
-            className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Try again
-            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-          </button>
-        </div>
-      )}
-
-      {/* Back — only before generation */}
-      {status === "idle" && (
-        <div className="mt-6">
-          <button
-            onClick={onBack}
-            className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            ← Back
-          </button>
+          <div className="flex gap-3">
+            <button onClick={handleGenerate}
+              className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
+              style={{ fontFamily: "var(--font-body)" }}>
+              Try again
+              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </button>
+            <button onClick={onBack}
+              className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
+              style={{ fontFamily: "var(--font-body)" }}>
+              ← Back
+            </button>
+          </div>
         </div>
       )}
     </div>

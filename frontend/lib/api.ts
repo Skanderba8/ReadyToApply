@@ -11,6 +11,7 @@ export interface CVData {
     phone: string;
     location: string;
     linkedin?: string;
+    github?: string;
   };
   summary: string;
   experience: {
@@ -32,6 +33,16 @@ export interface CVData {
     name: string;
     issuer: string;
     year: string;
+  }[];
+  languages: {
+    language: string;
+    level: string;
+  }[];
+  projects: {
+    name: string;
+    description: string;
+    url?: string;
+    year?: string;
   }[];
 }
 
@@ -121,6 +132,41 @@ export async function generateCV(
   let response: Response;
   try {
     response = await fetch(`${API_URL}/generate`, {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    throw new Error("Network error. Please check your connection and try again.");
+  }
+
+  if (!response.ok) {
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail);
+  }
+
+  return response.blob();
+}
+
+// ---------------------------------------------------------------------------
+// Step 2b — Generate PDF
+// ---------------------------------------------------------------------------
+export async function generateCVPdf(
+  cvData: CVData,
+  jobDescription: string,
+  template: string,
+  keywords?: Keywords
+): Promise<Blob> {
+  const formData = new FormData();
+  formData.append("cv_data", JSON.stringify(cvData));
+  formData.append("job_description", jobDescription);
+  formData.append("template", template);
+  if (keywords) {
+    formData.append("keywords", JSON.stringify(keywords));
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/generate-pdf`, {
       method: "POST",
       body: formData,
     });

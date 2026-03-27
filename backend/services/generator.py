@@ -22,7 +22,7 @@ def generate_cv(profile: CVProfile, max_retries: int = 3) -> CVProfile:
 
     for attempt in range(max_retries):
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[{"role": "user", "content": user_message}],
             temperature=0.3,
         )
