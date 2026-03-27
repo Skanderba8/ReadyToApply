@@ -130,12 +130,10 @@ def _render_skills_table(doc: Document, skills: list, font: str,
                          size: float, color: str) -> None:
     if not skills:
         return
-    # Ensure even count
+    # Pad to even with empty string so odd lists don't lose the last item
     items = list(skills)
     if len(items) % 2 != 0:
-        items = items[:-1]
-    if not items:
-        return
+        items = items + [""]
 
     table = doc.add_table(rows=len(items) // 2, cols=2)
     # Remove table style borders

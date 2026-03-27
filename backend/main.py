@@ -112,6 +112,30 @@ def health():
     return {"status": "ok"}
 
 
+@app.post("/review")
+async def submit_review(request: Request, payload: dict):
+    """Store anonymous review (stars + comment) to a local JSON file."""
+    stars = payload.get("stars")
+    comment = str(payload.get("comment", "")).strip()[:500]
+    if not isinstance(stars, int) or not (1 <= stars <= 5):
+        raise HTTPException(status_code=422, detail="stars must be 1–5")
+
+    import datetime
+    entry = {
+        "stars": stars,
+        "comment": comment,
+        "ts": datetime.datetime.utcnow().isoformat(),
+    }
+    reviews_path = Path(__file__).parent / "reviews.json"
+    try:
+        reviews = json.loads(reviews_path.read_text()) if reviews_path.exists() else []
+        reviews.append(entry)
+        reviews_path.write_text(json.dumps(reviews, ensure_ascii=False, indent=2))
+    except Exception as e:
+        logger.error("Failed to save review: %s", e)
+    return {"ok": True}
+
+
 @app.post("/extract")
 @limiter.limit("5/minute;20/hour")
 async def extract(
@@ -127,8 +151,14 @@ async def extract(
         raw_text = parse_pdf(file_bytes)
         raw_text = raw_text[:MAX_RAW_TEXT_CHARS]
 
+        # Detect job description language before generating
+        fr_words = ["le ", "la ", "les ", "de ", "du ", "des ", "et ", "en ", "pour ",
+                    "avec ", "dans ", "sur ", "une ", "est ", "sont ", "par ", "au "]
+        jd_lower = job_description.lower()
+        target_lang = "fr" if sum(1 for w in fr_words if w in jd_lower) >= 4 else "en"
+
         profile = extract_profile(raw_text)
-        generated = generate_cv(profile)
+        generated = generate_cv(profile, target_lang=target_lang)
         keywords = extract_keywords(job_description)
 
         return {"cv": generated.model_dump(), "keywords": keywords}

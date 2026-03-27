@@ -11,14 +11,20 @@ def load_prompt(filename: str) -> str:
     with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
 
-def generate_cv(profile: CVProfile, max_retries: int = 3) -> CVProfile:
+def generate_cv(profile: CVProfile, target_lang: str = "en", max_retries: int = 3) -> CVProfile:
     """
     Takes a CVProfile, rewrites it to be strong and clean.
+    target_lang: "en" or "fr" — controls output language.
     Returns a validated CVProfile.
     """
     prompt = load_prompt("generate.txt")
     profile_json = json.dumps(profile.model_dump(), indent=2)
-    user_message = f"{prompt}\n\nHere is the profile JSON to rewrite:\n\n{profile_json}"
+
+    lang_instruction = ""
+    if target_lang == "fr":
+        lang_instruction = "\n\nIMPORTANT: Write ALL content in French — summary, experience bullets, skill names, everything. Do not use English."
+
+    user_message = f"{prompt}{lang_instruction}\n\nHere is the profile JSON to rewrite:\n\n{profile_json}"
 
     for attempt in range(max_retries):
         response = client.chat.completions.create(

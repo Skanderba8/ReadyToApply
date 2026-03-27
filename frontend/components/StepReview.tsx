@@ -11,6 +11,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { RefreshCw, AlertCircle, Plus, X, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { extractCV, CVData, Keywords } from "@/lib/api";
+import { useLang, detectJobLang } from "@/lib/i18n";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -23,8 +24,20 @@ interface SectionDef {
   optional?: boolean;
 }
 
-const LANGUAGE_LEVELS = ["Native", "Fluent", "Professional", "Intermediate", "Basic",
-  "Natif", "Courant", "Professionnel", "Intermédiaire", "Notions"];
+const LANGUAGE_LEVELS_EN = ["Native", "Fluent", "Professional", "Intermediate", "Basic"];
+const LANGUAGE_LEVELS_FR = ["Natif", "Courant", "Professionnel", "Intermédiaire", "Notions"];
+
+// Common languages with EN/FR names
+const LANGUAGES_EN = [
+  "English", "French", "Arabic", "Spanish", "German", "Italian", "Portuguese",
+  "Chinese", "Japanese", "Russian", "Dutch", "Turkish", "Polish", "Swedish",
+  "Danish", "Norwegian", "Finnish", "Korean", "Hindi", "Other",
+];
+const LANGUAGES_FR = [
+  "Anglais", "Français", "Arabe", "Espagnol", "Allemand", "Italien", "Portugais",
+  "Chinois", "Japonais", "Russe", "Néerlandais", "Turc", "Polonais", "Suédois",
+  "Danois", "Norvégien", "Finnois", "Coréen", "Hindi", "Autre",
+];
 
 // ─── i18n labels ─────────────────────────────────────────────────────────────
 
@@ -210,32 +223,36 @@ interface StepReviewProps {
   file: File | null;
   pastedText: string;
   jobDescription: string;
+  initialCv?: CVData | null;
+  initialKeywords?: Keywords | null;
   onNext: (cv: CVData, keywords: Keywords) => void;
   onBack: () => void;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function StepReview({ file, pastedText, jobDescription, onNext, onBack }: StepReviewProps) {
-  const lang = detectLang(jobDescription);
+export default function StepReview({ file, pastedText, jobDescription, initialCv, initialKeywords, onNext, onBack }: StepReviewProps) {
+  const { lang, setLang, u } = useLang();
+  const LANGUAGE_LEVELS = lang === "fr" ? LANGUAGE_LEVELS_FR : LANGUAGE_LEVELS_EN;
+  const LANGUAGES = lang === "fr" ? LANGUAGES_FR : LANGUAGES_EN;
 
   type LoadState = "loading" | "ready" | "error";
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadState, setLoadState] = useState<LoadState>(initialCv ? "ready" : "loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [cv, setCv] = useState<CVData | null>(null);
-  const [keywords, setKeywords] = useState<Keywords>({ technical: [], soft: [], industry: [] });
+  const [cv, setCv] = useState<CVData | null>(initialCv ?? null);
+  const [keywords, setKeywords] = useState<Keywords>(initialKeywords ?? { technical: [], soft: [], industry: [] });
 
   // Section order + optional section toggles
   const allSections: SectionDef[] = [
-    { id: "basics", label: () => t("basics", lang) },
-    { id: "contact", label: () => t("contact", lang) },
-    { id: "experience", label: (cv) => `${t("experience", lang)} (${cv.experience.length})` },
-    { id: "education", label: (cv) => `${t("education", lang)} (${cv.education.length})` },
-    { id: "skills", label: (cv) => `${t("skills", lang)} (${cv.skills.length}/12)` },
-    { id: "certifications", label: (cv) => `${t("certifications", lang)} (${cv.certifications.length})` },
-    { id: "languages", label: (cv) => `${t("languages", lang)} (${cv.languages.length})`, optional: true },
-    { id: "projects", label: (cv) => `${t("projects", lang)} (${cv.projects.length})`, optional: true },
-    { id: "keywords", label: () => t("keywords", lang) },
+    { id: "basics", label: () => u("basics") },
+    { id: "contact", label: () => u("contact") },
+    { id: "experience", label: (cv) => `${u("experience")} (${cv.experience.length})` },
+    { id: "education", label: (cv) => `${u("education")} (${cv.education.length})` },
+    { id: "skills", label: (cv) => `${u("skills")} (${cv.skills.length}/12)` },
+    { id: "certifications", label: (cv) => `${u("certifications")} (${cv.certifications.length})` },
+    { id: "languages", label: (cv) => `${u("languages")} (${cv.languages.length})`, optional: true },
+    { id: "projects", label: (cv) => `${u("projects")} (${cv.projects.length})`, optional: true },
+    { id: "keywords", label: () => u("keywords") },
   ];
 
   const [sectionOrder, setSectionOrder] = useState<SectionId[]>(
@@ -260,6 +277,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
   }, []);
 
   useEffect(() => {
+    if (initialCv) return; // already have data, skip extraction
     let cancelled = false;
     (async () => {
       try {
@@ -339,7 +357,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
   if (loadState === "error") return (
     <div className="animate-fade-up space-y-4">
       <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
-        {lang === "fr" ? "Une erreur est survenue" : "Something went wrong"}
+        {u("errorTitle")}
       </h2>
       <div className="flex items-start gap-3 p-4 border border-red-900 bg-red-950/30">
         <AlertCircle size={18} className="text-red-400 mt-0.5 shrink-0" />
@@ -349,7 +367,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
         </div>
       </div>
       <button onClick={onBack} className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]">
-        {t("back", lang)}
+        {u("back")}
       </button>
     </div>
   );
@@ -362,10 +380,10 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
     basics: (
       <>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label={t("fullName", lang)} value={cv.name} onChange={v => upd({ name: v })} />
-          <Field label={t("profTitle", lang)} value={cv.title} onChange={v => upd({ title: v })} />
+          <Field label={u("fullName")} value={cv.name} onChange={v => upd({ name: v })} />
+          <Field label={u("profTitle")} value={cv.title} onChange={v => upd({ title: v })} />
         </div>
-        <Field label={t("summary", lang)} value={cv.summary} onChange={v => upd({ summary: v })} multiline maxLength={800} />
+        <Field label={u("summary")} value={cv.summary} onChange={v => upd({ summary: v })} multiline maxLength={800} />
       </>
     ),
     contact: (
@@ -382,21 +400,21 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
         {cv.experience.map((job, ei) => (
           <div key={ei} className="border border-[#2E2E2E] p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[#9A9A9A]">{lang === "fr" ? `Poste ${ei + 1}` : `Role ${ei + 1}`}</span>
+              <span className="text-xs text-[#9A9A9A]">{`${u("roleN")} ${ei + 1}`}</span>
               <button onClick={() => upd({ experience: cv.experience.filter((_, j) => j !== ei) })}
                 className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
-                <X size={11} /> {t("remove", lang)}
+                <X size={11} /> {u("remove")}
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label={t("company", lang)} value={job.company} onChange={v => updExp(ei, "company", v)} />
-              <Field label={t("title", lang)} value={job.title} onChange={v => updExp(ei, "title", v)} />
-              <Field label={t("location", lang)} value={job.location} onChange={v => updExp(ei, "location", v)} />
-              <Field label={t("start", lang)} value={job.start} onChange={v => updExp(ei, "start", v)} />
-              <Field label={t("end", lang)} value={job.end} onChange={v => updExp(ei, "end", v)} />
+              <Field label={u("company")} value={job.company} onChange={v => updExp(ei, "company", v)} />
+              <Field label={u("title")} value={job.title} onChange={v => updExp(ei, "title", v)} />
+              <Field label={u("location")} value={job.location} onChange={v => updExp(ei, "location", v)} />
+              <Field label={u("start")} value={job.start} onChange={v => updExp(ei, "start", v)} />
+              <Field label={u("end")} value={job.end} onChange={v => updExp(ei, "end", v)} />
             </div>
             <div className="space-y-2">
-              <label className="text-xs text-[#9A9A9A]">{t("bullets", lang)} (max 6)</label>
+              <label className="text-xs text-[#9A9A9A]">{u("bullets")} (max 6)</label>
               {job.bullets.map((b, bi) => (
                 <div key={bi} className="flex gap-2">
                   <input type="text" value={b} onChange={e => updExpBullet(ei, bi, e.target.value)}
@@ -410,7 +428,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
               {job.bullets.length < 6 && (
                 <button onClick={() => addExpBullet(ei)}
                   className="text-xs text-[#9A9A9A] hover:text-[#FF4D00] transition-colors flex items-center gap-1 mt-1">
-                  <Plus size={11} /> {t("addBullet", lang)}
+                  <Plus size={11} /> {u("addBullet")}
                 </button>
               )}
             </div>
@@ -418,7 +436,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
         ))}
         <button onClick={() => upd({ experience: [...cv.experience, { company: "", title: "", location: "", start: "", end: "", bullets: [""] }] })}
           className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
-          <Plus size={13} /> {t("addExperience", lang)}
+          <Plus size={13} /> {u("addExperience")}
         </button>
       </div>
     ),
@@ -430,20 +448,20 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
               <span className="text-xs text-[#9A9A9A]">{i + 1}</span>
               <button onClick={() => upd({ education: cv.education.filter((_, j) => j !== i) })}
                 className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
-                <X size={11} /> {t("remove", lang)}
+                <X size={11} /> {u("remove")}
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label={t("institution", lang)} value={edu.institution} onChange={v => updEdu(i, "institution", v)} />
-              <Field label={t("degree", lang)} value={edu.degree} onChange={v => updEdu(i, "degree", v)} />
-              <Field label={t("field", lang)} value={edu.field} onChange={v => updEdu(i, "field", v)} />
-              <Field label={t("year", lang)} value={edu.year} onChange={v => updEdu(i, "year", v)} />
+              <Field label={u("institution")} value={edu.institution} onChange={v => updEdu(i, "institution", v)} />
+              <Field label={u("degree")} value={edu.degree} onChange={v => updEdu(i, "degree", v)} />
+              <Field label={u("field")} value={edu.field} onChange={v => updEdu(i, "field", v)} />
+              <Field label={u("year")} value={edu.year} onChange={v => updEdu(i, "year", v)} />
             </div>
           </div>
         ))}
         <button onClick={() => upd({ education: [...cv.education, { institution: "", degree: "", field: "", year: "" }] })}
           className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
-          <Plus size={13} /> {t("addEducation", lang)}
+          <Plus size={13} /> {u("addEducation")}
         </button>
       </div>
     ),
@@ -451,7 +469,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
           {cv.skills.map((s, i) => <Pill key={i} label={s} onRemove={() => removeSkill(i)} />)}
-          {cv.skills.length < 12 && <AddPill placeholder={t("addSkill", lang)} onAdd={addSkill} />}
+          {cv.skills.length < 12 && <AddPill placeholder={u("addSkill")} onAdd={addSkill} />}
         </div>
         <p className="text-xs text-[#9A9A9A]">{cv.skills.length}/12</p>
       </div>
@@ -464,19 +482,19 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
               <span className="text-xs text-[#9A9A9A]">{i + 1}</span>
               <button onClick={() => upd({ certifications: cv.certifications.filter((_, j) => j !== i) })}
                 className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
-                <X size={11} /> {t("remove", lang)}
+                <X size={11} /> {u("remove")}
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label={t("projName", lang)} value={cert.name} onChange={v => updCert(i, "name", v)} />
-              <Field label={t("issuer", lang)} value={cert.issuer} onChange={v => updCert(i, "issuer", v)} />
-              <Field label={t("year", lang)} value={cert.year} onChange={v => updCert(i, "year", v)} />
+              <Field label={u("projName")} value={cert.name} onChange={v => updCert(i, "name", v)} />
+              <Field label={u("issuer")} value={cert.issuer} onChange={v => updCert(i, "issuer", v)} />
+              <Field label={u("year")} value={cert.year} onChange={v => updCert(i, "year", v)} />
             </div>
           </div>
         ))}
         <button onClick={() => upd({ certifications: [...cv.certifications, { name: "", issuer: "", year: "" }] })}
           className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
-          <Plus size={13} /> {t("addCert", lang)}
+          <Plus size={13} /> {u("addCert")}
         </button>
       </div>
     ),
@@ -484,9 +502,11 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
       <div className="space-y-3">
         {cv.languages.map((l, i) => (
           <div key={i} className="flex items-center gap-3">
-            <input type="text" value={l.language} onChange={e => updLang(i, "language", e.target.value)}
-              placeholder={t("language", lang)}
-              className="flex-1 bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors" />
+            <select value={l.language} onChange={e => updLang(i, "language", e.target.value)}
+              className="flex-1 bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors">
+              <option value="">{u("language")}…</option>
+              {LANGUAGES.map(ln => <option key={ln} value={ln}>{ln}</option>)}
+            </select>
             <select value={l.level} onChange={e => updLang(i, "level", e.target.value)}
               className="bg-[#1C1C1C] border border-[#2E2E2E] text-[#F5F0EB] text-sm px-3 py-2 focus:outline-none focus:border-[#FF4D00] transition-colors">
               {LANGUAGE_LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
@@ -497,9 +517,9 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
             </button>
           </div>
         ))}
-        <button onClick={() => upd({ languages: [...cv.languages, { language: "", level: "Fluent" }] })}
+        <button onClick={() => upd({ languages: [...cv.languages, { language: "", level: LANGUAGE_LEVELS[1] }] })}
           className="text-xs text-[#9A9A9A] hover:text-[#FF4D00] transition-colors flex items-center gap-1">
-          <Plus size={11} /> {t("addLanguage", lang)}
+          <Plus size={11} /> {u("addLanguage")}
         </button>
       </div>
     ),
@@ -511,32 +531,32 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
               <span className="text-xs text-[#9A9A9A]">{i + 1}</span>
               <button onClick={() => upd({ projects: cv.projects.filter((_, j) => j !== i) })}
                 className="text-xs text-[#9A9A9A] hover:text-red-400 transition-colors flex items-center gap-1">
-                <X size={11} /> {t("remove", lang)}
+                <X size={11} /> {u("remove")}
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label={t("projName", lang)} value={proj.name} onChange={v => updProj(i, "name", v)} />
-              <Field label={t("year", lang)} value={proj.year ?? ""} onChange={v => updProj(i, "year", v)} />
+              <Field label={u("projName")} value={proj.name} onChange={v => updProj(i, "name", v)} />
+              <Field label={u("year")} value={proj.year ?? ""} onChange={v => updProj(i, "year", v)} />
               <Field label="URL" value={proj.url ?? ""} onChange={v => updProj(i, "url", v)} />
             </div>
-            <Field label={t("projDesc", lang)} value={proj.description} onChange={v => updProj(i, "description", v)} multiline />
+            <Field label={u("projDesc")} value={proj.description} onChange={v => updProj(i, "description", v)} multiline />
           </div>
         ))}
         <button onClick={() => upd({ projects: [...cv.projects, { name: "", description: "", url: "", year: "" }] })}
           className="w-full py-3 border border-dashed border-[#2E2E2E] text-xs text-[#9A9A9A] hover:border-[#FF4D00] hover:text-[#FF4D00] transition-colors flex items-center justify-center gap-2 rounded-sm">
-          <Plus size={13} /> {t("addProject", lang)}
+          <Plus size={13} /> {u("addProject")}
         </button>
       </div>
     ),
     keywords: (
       <div className="space-y-4">
-        <p className="text-xs text-[#9A9A9A]">{t("keywordsSub", lang)}</p>
+        <p className="text-xs text-[#9A9A9A]">{u("keywordsSub")}</p>
         {(["technical", "soft", "industry"] as const).map(bucket => (
           <div key={bucket}>
             <p className="text-xs font-semibold uppercase tracking-widest text-[#9A9A9A] mb-2">{t(bucket, lang)}</p>
             <div className="flex flex-wrap gap-2">
               {keywords[bucket].map((k, i) => <Pill key={i} label={k} onRemove={() => removeKw(bucket, i)} />)}
-              <AddPill placeholder={t("add", lang)} onAdd={v => addKw(bucket, v)} />
+              <AddPill placeholder={u("add")} onAdd={v => addKw(bucket, v)} />
             </div>
           </div>
         ))}
@@ -554,11 +574,11 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
     <div className="animate-fade-up space-y-5">
       <div>
         <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "var(--font-display)" }}>
-          {t("reviewing", lang)}
+          {u("reviewing")}
         </h2>
-        <p className="text-[#9A9A9A] text-sm">{t("reviewSub", lang)}</p>
+        <p className="text-[#9A9A9A] text-sm">{u("reviewSub")}</p>
         <p className="text-xs text-[#9A9A9A] mt-1 flex items-center gap-1">
-          <GripVertical size={11} /> {t("dragHint", lang)}
+          <GripVertical size={11} /> {u("dragHint")}
         </p>
       </div>
 
@@ -572,7 +592,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
 
               const rightSlot = isOptional ? (
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                  <span className="text-xs text-[#9A9A9A]">{t("enableSection", lang)}</span>
+                  <span className="text-xs text-[#9A9A9A]">{u("enableSection")}</span>
                   <Toggle
                     enabled={enabledOptional[section.id]}
                     onChange={v => setEnabledOptional(prev => ({ ...prev, [section.id]: v }))}
@@ -606,7 +626,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
         <button onClick={onBack}
           className="px-6 py-4 text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors border border-[#2E2E2E] hover:border-[#9A9A9A]"
           style={{ fontFamily: "var(--font-body)" }}>
-          {t("back", lang)}
+          {u("back")}
         </button>
         <button
           onClick={() => {
@@ -620,7 +640,7 @@ export default function StepReview({ file, pastedText, jobDescription, onNext, o
           }}
           className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200"
           style={{ fontFamily: "var(--font-body)" }}>
-          {t("looksGood", lang)}
+          {u("looksGood")}
           <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
         </button>
       </div>
