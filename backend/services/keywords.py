@@ -1,61 +1,72 @@
-import os
-import json
-from groq import Groq
-
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-
-_PROMPT = """You are a technical recruiter. Extract the most important keywords from the job description below.
-
-Return ONLY a valid JSON object with this exact structure — no explanation, no markdown:
-{
-  "technical": ["keyword1", "keyword2"],
-  "soft": ["keyword1", "keyword2"],
-  "industry": ["keyword1", "keyword2"]
-}
-
-Rules:
-- "technical": tools, languages, frameworks, platforms, methodologies (max 15)
-- "soft": interpersonal and behavioural skills (max 8)
-- "industry": domain terms, certifications, standards (max 8)
-- Use the exact wording from the job description where possible
-- No duplicates across categories
+"""
+Local keyword extractor — no API call.
+Uses a curated word list to pull technical/industry terms from the job description.
+Soft skills are extracted via a simple pattern match.
+Good enough to feed into the tailor prompt.
 """
 
-def extract_keywords(job_description: str, max_retries: int = 3) -> dict:
+import re
+
+_TECHNICAL = {
+    # Languages
+    "python", "javascript", "typescript", "java", "kotlin", "swift", "go", "golang",
+    "rust", "c++", "c#", "ruby", "php", "scala", "r", "matlab", "bash", "sql",
+    # Frontend
+    "react", "next.js", "nextjs", "vue", "angular", "svelte", "html", "css",
+    "tailwind", "sass", "webpack", "vite",
+    # Backend
+    "node.js", "nodejs", "fastapi", "django", "flask", "express", "spring", "rails",
+    "graphql", "rest", "grpc",
+    # Data / ML
+    "pytorch", "tensorflow", "keras", "scikit-learn", "pandas", "numpy", "spark",
+    "hadoop", "airflow", "dbt", "mlflow", "hugging face", "llm", "rag",
+    # Cloud / Infra
+    "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "ansible",
+    "ci/cd", "github actions", "jenkins", "linux", "nginx",
+    # Databases
+    "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "dynamodb",
+    "supabase", "firebase", "snowflake", "bigquery",
+    # Practices
+    "agile", "scrum", "tdd", "bdd", "microservices", "devops", "mlops",
+    "api", "oauth", "jwt", "websocket",
+}
+
+_SOFT = {
+    "communication", "teamwork", "leadership", "problem-solving", "adaptability",
+    "collaboration", "time management", "critical thinking", "creativity",
+    "attention to detail", "autonomy", "initiative",
+}
+
+_INDUSTRY = {
+    "fintech", "saas", "b2b", "b2c", "e-commerce", "healthtech", "edtech",
+    "cybersecurity", "blockchain", "iot", "embedded", "data engineering",
+    "machine learning", "artificial intelligence", "nlp", "computer vision",
+    "product management", "ux", "ui", "seo", "erp", "crm",
+    "iso", "gdpr", "hipaa", "sox", "pci-dss",
+}
+
+
+def _find_matches(text: str, word_set: set) -> list[str]:
+    text_lower = text.lower()
+    found = []
+    for term in word_set:
+        # Use word boundary for single words, substring match for phrases
+        if " " in term:
+            if term in text_lower:
+                found.append(term)
+        else:
+            if re.search(rf"\b{re.escape(term)}\b", text_lower):
+                found.append(term)
+    return found
+
+
+def extract_keywords(job_description: str) -> dict:
     """
-    Takes a job description string.
     Returns a dict with keys: technical, soft, industry — each a list of strings.
-    Falls back to empty lists if extraction fails (non-fatal).
+    Pure local processing, no API call.
     """
-    user_message = f"{_PROMPT}\n\nJob description:\n\n{job_description}"
+    technical = _find_matches(job_description, _TECHNICAL)[:15]
+    soft = _find_matches(job_description, _SOFT)[:8]
+    industry = _find_matches(job_description, _INDUSTRY)[:8]
 
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[{"role": "user", "content": user_message}],
-                temperature=0.1,
-            )
-            raw = response.choices[0].message.content.strip()
-
-            # Strip markdown fences if present
-            if raw.startswith("```"):
-                lines = raw.split("\n")
-                lines = [l for l in lines if not l.strip().startswith("```")]
-                raw = "\n".join(lines).strip()
-
-            data = json.loads(raw)
-
-            # Normalise — ensure all three keys exist and are lists of strings
-            result = {
-                "technical": [str(k) for k in data.get("technical", [])],
-                "soft":      [str(k) for k in data.get("soft", [])],
-                "industry":  [str(k) for k in data.get("industry", [])],
-            }
-            return result
-
-        except Exception:
-            if attempt == max_retries - 1:
-                # Non-fatal: return empty rather than crashing the whole request
-                return {"technical": [], "soft": [], "industry": []}
-            continue
+    return {"technical": technical, "soft": soft, "industry": industry}

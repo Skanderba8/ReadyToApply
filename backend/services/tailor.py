@@ -7,7 +7,7 @@ from models.schema import CVProfile
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-def tailor_cv(profile: CVProfile, job_description: str, keywords: dict = None, max_retries: int = 3) -> CVProfile:
+def tailor_cv(profile: CVProfile, job_description: str, keywords: dict = None) -> CVProfile:
     """
     Takes a CVProfile, job description, and optional extracted keywords dict.
     Returns a tailored CVProfile with keywords woven throughout.
@@ -26,19 +26,11 @@ def tailor_cv(profile: CVProfile, job_description: str, keywords: dict = None, m
         f"{keywords_section}"
     )
 
-    for attempt in range(max_retries):
-        response = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[{"role": "user", "content": user_message}],
-            temperature=0.3,
-        )
+    response = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        messages=[{"role": "user", "content": user_message}],
+        temperature=0.3,
+    )
 
-        ai_output = response.choices[0].message.content
-
-        try:
-            tailored_profile = validate_cv(ai_output)
-            return tailored_profile
-        except ValueError as e:
-            if attempt == max_retries - 1:
-                raise ValueError(f"Tailoring failed after {max_retries} attempts: {e}")
-            continue
+    ai_output = response.choices[0].message.content
+    return validate_cv(ai_output)

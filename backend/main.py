@@ -17,7 +17,6 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 from supabase import create_client, Client as SupabaseClient
 from services.parser import parse_pdf
 from services.extractor import extract_profile
-from services.generator import generate_cv
 from services.tailor import tailor_cv
 from services.keywords import extract_keywords
 from services.utils import detect_lang
@@ -167,10 +166,8 @@ async def extract(
         raw_text = parse_pdf(file_bytes)
         raw_text = raw_text[:MAX_RAW_TEXT_CHARS]
 
-        target_lang = detect_lang(job_description)
-
-        profile = extract_profile(raw_text)
-        generated = generate_cv(profile, target_lang=target_lang)
+        generated = extract_profile(raw_text)
+        keywords = extract_keywords(job_description)
         keywords = extract_keywords(job_description)
 
         return {"cv": generated.model_dump(), "keywords": keywords}
