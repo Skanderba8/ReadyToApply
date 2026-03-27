@@ -110,6 +110,7 @@ export default function BuildPage() {
             cvData={cvData}
             jobDescription={jobDescription}
             template={template}
+            keywords={keywords}
             onBack={back}
           />
         )}

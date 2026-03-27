@@ -148,6 +148,7 @@ async def generate(
     cv_data: str = Form(...),           # JSON string of (possibly edited) CVProfile
     job_description: str = Form(...),
     template: str = Form(default="classic"),
+    keywords: str = Form(default=""),   # JSON string of keywords dict (optional)
 ):
     """
     Step 2 of the new two-step flow.
@@ -165,13 +166,21 @@ async def generate(
     except (json.JSONDecodeError, Exception) as e:
         raise HTTPException(status_code=422, detail=f"Invalid CV data: {e}")
 
+    # Parse keywords if provided
+    parsed_keywords = None
+    if keywords:
+        try:
+            parsed_keywords = json.loads(keywords)
+        except json.JSONDecodeError:
+            parsed_keywords = None
+
     # Sanitise template name — only allow known values
-    VALID_TEMPLATES = {"classic", "modern", "professional", "creative"}
+    VALID_TEMPLATES = {"classic", "modern", "compact"}
     if template not in VALID_TEMPLATES:
         template = "classic"
 
     try:
-        tailored = tailor_cv(profile, job_description)
+        tailored = tailor_cv(profile, job_description, keywords=parsed_keywords)
 
         from services.renderer import render_cv
         docx_bytes = render_cv(tailored, template_name=template)

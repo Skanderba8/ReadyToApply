@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Download, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
-import { generateCV, downloadBlob, CVData } from "@/lib/api";
+import { generateCV, downloadBlob, CVData, Keywords } from "@/lib/api";
 
 interface StepDownloadProps {
   cvData: CVData;
   jobDescription: string;
   template: string;
+  keywords: Keywords | null;
   onBack: () => void;
 }
 
@@ -17,6 +18,7 @@ export default function StepDownload({
   cvData,
   jobDescription,
   template,
+  keywords,
   onBack,
 }: StepDownloadProps) {
   const [status, setStatus] = useState<Status>("idle");
@@ -30,7 +32,7 @@ export default function StepDownload({
     setStatus("tailoring");
 
     try {
-      const blob = await generateCV(cvData, jobDescription, template);
+      const blob = await generateCV(cvData, jobDescription, template, keywords ?? undefined);
 
       // Mirror the backend filename logic
       const safeName = cvData.name.replace(/\s+/g, "_").replace(/\//g, "_");

@@ -11,13 +11,24 @@ def load_prompt(filename: str) -> str:
     with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
 
-def tailor_cv(profile: CVProfile, job_description: str, max_retries: int = 3) -> CVProfile:
+def tailor_cv(profile: CVProfile, job_description: str, keywords: dict = None, max_retries: int = 3) -> CVProfile:
     """
-    Takes a CVProfile and job description, returns a tailored CVProfile.
+    Takes a CVProfile, job description, and optional extracted keywords dict.
+    Returns a tailored CVProfile with keywords woven throughout.
     """
     prompt = load_prompt("tailor.txt")
     profile_json = json.dumps(profile.model_dump(), indent=2)
-    user_message = f"{prompt}\n\nHere is the CV JSON:\n\n{profile_json}\n\nHere is the job description:\n\n{job_description}"
+
+    keywords_section = ""
+    if keywords:
+        keywords_section = f"\n\nExtracted keywords to weave into the CV:\n{json.dumps(keywords, indent=2)}"
+
+    user_message = (
+        f"{prompt}\n\n"
+        f"Here is the CV JSON:\n\n{profile_json}\n\n"
+        f"Here is the job description:\n\n{job_description}"
+        f"{keywords_section}"
+    )
 
     for attempt in range(max_retries):
         response = client.chat.completions.create(

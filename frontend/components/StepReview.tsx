@@ -408,7 +408,7 @@ export default function StepReview({
           value={cv.summary}
           onChange={(v) => setCv({ ...cv, summary: v })}
           multiline
-          maxLength={400}
+          maxLength={800}
         />
       </Section>
 
@@ -514,7 +514,7 @@ export default function StepReview({
       </Section>
 
       {/* ── Skills ── */}
-      <Section title={`Skills (${cv.skills.length}/12)`} defaultOpen={false}>
+      <Section title={`Skills (${cv.skills.length}/12)`} defaultOpen={true}>
         <div className="flex flex-wrap gap-2">
           {cv.skills.map((s, i) => (
             <Pill key={i} label={s} onRemove={() => removeSkill(i)} />

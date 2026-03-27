@@ -4,213 +4,200 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from models.schema import CVProfile
 from templates.config import TEMPLATES, DEFAULT_TEMPLATE
-from templates.base import (
-    set_font,
-    add_section_heading,
-    add_modern_section_heading,
-    add_modern_header,
-    add_bullet,
-)
+from templates.base import set_font, add_section_heading, add_bullet
 
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 def render_cv(profile: CVProfile, template_name: str = DEFAULT_TEMPLATE) -> bytes:
     config = TEMPLATES.get(template_name, TEMPLATES[DEFAULT_TEMPLATE])
-
-    if template_name == "modern":
-        return _render_modern(profile, config)
-    elif template_name == "compact":
+    if template_name == "compact":
         return _render_compact(profile, config)
+    elif template_name == "modern":
+        return _render_modern(profile, config)
     else:
         return _render_classic(profile, config)
 
 
-# ---------------------------------------------------------------------------
-# Shared doc setup
-# ---------------------------------------------------------------------------
-
-def _new_doc(config: dict, top: float = 0.75, bottom: float = 0.75,
-             left: float = 0.85, right: float = 0.85) -> Document:
+def _new_doc(top=0.75, bottom=0.75, left=0.9, right=0.9) -> Document:
     doc = Document()
-    for section in doc.sections:
-        section.top_margin = Inches(top)
-        section.bottom_margin = Inches(bottom)
-        section.left_margin = Inches(left)
-        section.right_margin = Inches(right)
-
-    style = doc.styles["Normal"]
-    style.paragraph_format.space_before = Pt(0)
-    style.paragraph_format.space_after = Pt(0)
+    for s in doc.sections:
+        s.top_margin = Inches(top)
+        s.bottom_margin = Inches(bottom)
+        s.left_margin = Inches(left)
+        s.right_margin = Inches(right)
+    doc.styles["Normal"].paragraph_format.space_before = Pt(0)
+    doc.styles["Normal"].paragraph_format.space_after = Pt(0)
     return doc
 
 
 def _to_bytes(doc: Document) -> bytes:
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.read()
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.read()
 
 
 # ---------------------------------------------------------------------------
-# Classic renderer (unchanged from original)
+# Classic — centered header, black rules
 # ---------------------------------------------------------------------------
-
 def _render_classic(profile: CVProfile, config: dict) -> bytes:
-    doc = _new_doc(config)
+    doc = _new_doc()
 
-    # NAME
-    name_para = doc.add_paragraph()
-    name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_run = name_para.add_run(profile.name)
-    set_font(name_run, config["font_name"], config["font_size_name"], bold=True)
+    # Name
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(2)
+    set_font(p.add_run(profile.name), config["font_name"], config["font_size_name"],
+             bold=True, color_hex=config["color_name"])
 
-    # TITLE
-    title_para = doc.add_paragraph()
-    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title_para.add_run(profile.title)
-    set_font(title_run, config["font_name"], config["font_size_title"],
-             color_hex=config["color_contact"])
+    # Title
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(2)
+    set_font(p.add_run(profile.title), config["font_name"], config["font_size_title"],
+             italic=True, color_hex=config["color_title"])
 
-    # CONTACT
+    # Contact
     contact = profile.contact
-    contact_parts = [contact.email, contact.phone, contact.location]
-    if contact.linkedin:
-        contact_parts.append(contact.linkedin)
-    contact_para = doc.add_paragraph()
-    contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    contact_run = contact_para.add_run("  |  ".join(contact_parts))
-    set_font(contact_run, config["font_name"], config["font_size_contact"],
+    parts = [x for x in [contact.email, contact.phone, contact.location, contact.linkedin] if x]
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(4)
+    set_font(p.add_run("  |  ".join(parts)), config["font_name"], config["font_size_contact"],
              color_hex=config["color_contact"])
 
-    _render_body(doc, profile, config, heading_fn=add_section_heading)
-
+    _render_body(doc, profile, config)
     return _to_bytes(doc)
 
 
 # ---------------------------------------------------------------------------
-# Modern renderer — navy header block + coloured accent rules
+# Modern — left-aligned, navy name, blue accent rules
 # ---------------------------------------------------------------------------
-
 def _render_modern(profile: CVProfile, config: dict) -> bytes:
-    # Tighter left/right margins to give the header more width
-    doc = _new_doc(config, top=0.0, bottom=0.75, left=0.75, right=0.75)
+    doc = _new_doc(left=0.85, right=0.85)
 
-    # Full-width shaded header (name + title + contact)
-    add_modern_header(doc, profile, config)
+    # Name
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(2)
+    set_font(p.add_run(profile.name), config["font_name"], config["font_size_name"],
+             bold=True, color_hex=config["color_name"])
 
-    _render_body(doc, profile, config, heading_fn=add_modern_section_heading)
+    # Title
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(3)
+    set_font(p.add_run(profile.title), config["font_name"], config["font_size_title"],
+             color_hex=config["color_title"])
 
-    return _to_bytes(doc)
-
-
-# ---------------------------------------------------------------------------
-# Compact renderer — identical structure to classic, just smaller everything
-# ---------------------------------------------------------------------------
-
-def _render_compact(profile: CVProfile, config: dict) -> bytes:
-    doc = _new_doc(config, top=0.6, bottom=0.6, left=0.7, right=0.7)
-
-    # NAME
-    name_para = doc.add_paragraph()
-    name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_run = name_para.add_run(profile.name)
-    set_font(name_run, config["font_name"], config["font_size_name"], bold=True)
-
-    # TITLE + CONTACT on one line to save vertical space
+    # Contact
     contact = profile.contact
-    contact_parts = [contact.email, contact.phone, contact.location]
-    if contact.linkedin:
-        contact_parts.append(contact.linkedin)
-
-    info_para = doc.add_paragraph()
-    info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = info_para.add_run(f"{profile.title}  ·  ")
-    set_font(title_run, config["font_name"], config["font_size_contact"],
-             bold=True, color_hex=config["color_contact"])
-    contact_run = info_para.add_run("  |  ".join(contact_parts))
-    set_font(contact_run, config["font_name"], config["font_size_contact"],
+    parts = [x for x in [contact.email, contact.phone, contact.location, contact.linkedin] if x]
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(4)
+    set_font(p.add_run("  |  ".join(parts)), config["font_name"], config["font_size_contact"],
              color_hex=config["color_contact"])
 
-    _render_body(doc, profile, config, heading_fn=add_section_heading)
-
+    _render_body(doc, profile, config)
     return _to_bytes(doc)
 
 
 # ---------------------------------------------------------------------------
-# Shared body sections (summary → certifications)
+# Compact — left-aligned, smaller fonts, tight spacing
 # ---------------------------------------------------------------------------
+def _render_compact(profile: CVProfile, config: dict) -> bytes:
+    doc = _new_doc(top=0.6, bottom=0.6, left=0.75, right=0.75)
 
-def _render_body(doc: Document, profile: CVProfile, config: dict, heading_fn) -> None:
-    """Render all CV sections below the header. heading_fn controls the style."""
+    # Name
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(1)
+    set_font(p.add_run(profile.name), config["font_name"], config["font_size_name"],
+             bold=True, color_hex=config["color_name"])
 
+    # Title + contact on one line
+    contact = profile.contact
+    parts = [x for x in [contact.email, contact.phone, contact.location, contact.linkedin] if x]
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(3)
+    r1 = p.add_run(profile.title + "  ·  ")
+    set_font(r1, config["font_name"], config["font_size_title"],
+             bold=True, color_hex=config["color_title"])
+    r2 = p.add_run("  |  ".join(parts))
+    set_font(r2, config["font_name"], config["font_size_contact"],
+             color_hex=config["color_contact"])
+
+    _render_body(doc, profile, config)
+    return _to_bytes(doc)
+
+
+# ---------------------------------------------------------------------------
+# Shared body
+# ---------------------------------------------------------------------------
+def _render_body(doc: Document, profile: CVProfile, config: dict) -> None:
     font = config["font_name"]
-    body_size = config["font_size_body"]
-    contact_color = config["color_contact"]
+    body_sz = config["font_size_body"]
+    body_color = config.get("color_body", "1A1A1A")
+    dim_color = config["color_contact"]
 
     # SUMMARY
     if profile.summary:
-        heading_fn(doc, "Summary", config)
-        summary_para = doc.add_paragraph()
-        summary_run = summary_para.add_run(profile.summary)
-        set_font(summary_run, font, body_size)
+        add_section_heading(doc, "Summary", config)
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(2)
+        set_font(p.add_run(profile.summary), font, body_sz, color_hex=body_color)
 
     # EXPERIENCE
     if profile.experience:
-        heading_fn(doc, "Experience", config)
+        add_section_heading(doc, "Experience", config)
         for job in profile.experience:
-            job_para = doc.add_paragraph()
-            job_para.paragraph_format.space_before = Pt(6)
-            company_run = job_para.add_run(job.company)
-            set_font(company_run, font, body_size, bold=True)
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(7)
+            p.paragraph_format.space_after = Pt(0)
+            r = p.add_run(job.company)
+            set_font(r, font, body_sz, bold=True, color_hex=body_color)
+            r2 = p.add_run(f"  |  {job.start} – {job.end}")
+            set_font(r2, font, body_sz, color_hex=dim_color)
 
-            date_str = f"  |  {job.start} – {job.end}"
-            date_run = job_para.add_run(date_str)
-            set_font(date_run, font, body_size, color_hex=contact_color)
-
-            role_para = doc.add_paragraph()
-            role_run = role_para.add_run(f"{job.title}  ·  {job.location}")
-            set_font(role_run, font, body_size)
-            role_run.italic = True
+            p2 = doc.add_paragraph()
+            p2.paragraph_format.space_before = Pt(1)
+            p2.paragraph_format.space_after = Pt(2)
+            set_font(p2.add_run(f"{job.title}  ·  {job.location}"),
+                     font, body_sz, italic=True, color_hex=body_color)
 
             for bullet in job.bullets:
                 add_bullet(doc, bullet, config)
 
     # EDUCATION
     if profile.education:
-        heading_fn(doc, "Education", config)
+        add_section_heading(doc, "Education", config)
         for edu in profile.education:
-            edu_para = doc.add_paragraph()
-            edu_para.paragraph_format.space_before = Pt(4)
-            inst_run = edu_para.add_run(edu.institution)
-            set_font(inst_run, font, body_size, bold=True)
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(5)
+            p.paragraph_format.space_after = Pt(1)
+            set_font(p.add_run(edu.institution), font, body_sz, bold=True, color_hex=body_color)
+            r2 = p.add_run(f"  |  {edu.degree} in {edu.field}  ·  {edu.year}")
+            set_font(r2, font, body_sz, color_hex=dim_color)
 
-            degree_str = f"  |  {edu.degree} in {edu.field}  ·  {edu.year}"
-            degree_run = edu_para.add_run(degree_str)
-            set_font(degree_run, font, body_size)
-
-    # SKILLS
+    # SKILLS — two columns using tab-like spacing
     if profile.skills:
-        heading_fn(doc, "Skills", config)
-        skills_para = doc.add_paragraph()
-        skills_run = skills_para.add_run("  ·  ".join(profile.skills))
-        set_font(skills_run, font, body_size)
+        add_section_heading(doc, "Skills", config)
+        skills = profile.skills
+        mid = (len(skills) + 1) // 2
+        for i in range(mid):
+            left = skills[i]
+            right = skills[i + mid] if (i + mid) < len(skills) else ""
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(1)
+            p.paragraph_format.space_after = Pt(1)
+            line = f"• {left:<28}• {right}" if right else f"• {left}"
+            set_font(p.add_run(line), font, body_sz, color_hex=body_color)
 
     # CERTIFICATIONS
     if profile.certifications:
-        heading_fn(doc, "Certifications", config)
+        add_section_heading(doc, "Certifications", config)
         for cert in profile.certifications:
-            cert_para = doc.add_paragraph()
-            cert_para.paragraph_format.space_before = Pt(4)
-            cert_name_run = cert_para.add_run(cert.name)
-            set_font(cert_name_run, font, body_size, bold=True)
-            if cert.issuer or cert.year:
-                extra = []
-                if cert.issuer:
-                    extra.append(cert.issuer)
-                if cert.year:
-                    extra.append(cert.year)
-                cert_extra_run = cert_para.add_run(f"  ·  {' · '.join(extra)}")
-                set_font(cert_extra_run, font, body_size)
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(5)
+            p.paragraph_format.space_after = Pt(1)
+            set_font(p.add_run(cert.name), font, body_sz, bold=True, color_hex=body_color)
+            extras = [x for x in [cert.issuer, cert.year] if x]
+            if extras:
+                set_font(p.add_run(f"  ·  {' · '.join(extras)}"),
+                         font, body_sz, color_hex=dim_color)

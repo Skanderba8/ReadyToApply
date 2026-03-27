@@ -107,12 +107,16 @@ export async function extractCV(
 export async function generateCV(
   cvData: CVData,
   jobDescription: string,
-  template: string
+  template: string,
+  keywords?: Keywords
 ): Promise<Blob> {
   const formData = new FormData();
   formData.append("cv_data", JSON.stringify(cvData));
   formData.append("job_description", jobDescription);
   formData.append("template", template);
+  if (keywords) {
+    formData.append("keywords", JSON.stringify(keywords));
+  }
 
   let response: Response;
   try {
