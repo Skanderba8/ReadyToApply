@@ -92,7 +92,7 @@ Never commit real values. Copy `.env.example` to `.env` and fill locally. In pro
 GROQ_API_KEY=
 
 # AWS (set via SST secrets in production)
-AWS_REGION=eu-west-1
+AWS_REGION=eu-west-3
 S3_OUTPUT_BUCKET=
 
 # Backend

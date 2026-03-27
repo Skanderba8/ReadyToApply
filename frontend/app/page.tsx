@@ -11,12 +11,13 @@ export default function LandingPage() {
 
       {/* ─── Nav ─────────────────────────────────────────────────── */}
       <nav className="flex items-center justify-between px-6 md:px-12 py-6">
-        <span
-          className="font-display text-lg font-800 tracking-tight"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          ReadyToApply
-        </span>
+       <span
+  className="flex items-center gap-2 font-display text-lg font-800 tracking-tight"
+  style={{ fontFamily: "var(--font-display)" }}
+>
+  <img src="/logo.png" alt="" width={24} height={24} aria-hidden="true" />
+  ReadyToApply
+</span>
         <button
           onClick={() => router.push("/build")}
           className="text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors duration-200"
@@ -211,11 +212,12 @@ export default function LandingPage() {
       <footer className="px-6 md:px-12 py-8 border-t border-[#2E2E2E]">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <span
-            className="text-sm font-bold"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            ReadyToApply
-          </span>
+  className="flex items-center gap-2 text-sm font-bold"
+  style={{ fontFamily: "var(--font-display)" }}
+>
+  <img src="/logo.png" alt="" width={18} height={18} aria-hidden="true" />
+  ReadyToApply
+</span>
           <span className="text-xs text-[#9A9A9A]">
             No accounts. No subscriptions. No stored data.
           </span>

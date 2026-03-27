@@ -25,6 +25,10 @@ export const metadata: Metadata = {
     description: "Your CV, tailored in seconds.",
     type: "website",
   },
+    icons: {
+    icon: "/logo.png",       // tab favicon
+    shortcut: "/logo.png",   // browser shortcut
+  },
 };
 
 export default function RootLayout({
