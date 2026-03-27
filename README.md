@@ -1,54 +1,86 @@
 # ReadyToApply
 
-> Upload your LinkedIn profile, paste a job description, get a tailored ATS-clean CV in seconds.
+> Upload your LinkedIn profile, paste a job description — get a tailored, ATS-clean CV in seconds.
 
-**Core flow:** Profile in → Job description in → Template chosen → CV downloaded.
+**Live at:** [readytoapply.skander.cc](https://readytoapply.skander.cc)  
+**Made by:** [Skander Ben Abdallah](https://github.com/Skanderba8)  
+**License:** MIT
+
 No accounts. No subscriptions. No stored data.
 
-**Live at:** [readytoapply.skander.cc](https://readytoapply.skander.cc)
+---
+
+## What it does
+
+ReadyToApply is a full-stack AI-powered CV tailoring tool. You upload your LinkedIn PDF (or paste your CV text), paste a job description, pick a template, and download a `.docx` CV that is rewritten to match the role — keywords woven in, bullets strengthened, summary tailored, section headings translated if the job is in French.
+
+The entire pipeline runs in ~15 seconds and produces a clean Word document you can open, edit, and submit.
 
 ---
 
 ## Table of Contents
 
-1. [Project Status](#project-status)
-2. [Live URLs](#live-urls)
-3. [Tech Stack](#tech-stack)
+1. [Feature Overview](#feature-overview)
+2. [Tech Stack](#tech-stack)
+3. [Architecture](#architecture)
 4. [Project Structure](#project-structure)
-5. [Design System](#design-system)
-6. [How the Backend Works](#how-the-backend-works)
-7. [Running Locally](#running-locally)
-8. [Deployment](#deployment)
-9. [Updating the Live App](#updating-the-live-app)
-10. [Domain & DNS](#domain--dns)
-11. [Prompts](#prompts)
-12. [Contributing](#contributing)
-13. [Next Steps & Roadmap](#next-steps--roadmap)
+5. [AI Pipeline](#ai-pipeline)
+6. [CV Templates](#cv-templates)
+7. [Internationalisation (EN/FR)](#internationalisation-enfr)
+8. [Security & Rate Limiting](#security--rate-limiting)
+9. [CI/CD Pipeline](#cicd-pipeline)
+10. [Running Locally](#running-locally)
+11. [Deployment](#deployment)
+12. [Environment Variables](#environment-variables)
+13. [Tests](#tests)
+14. [Design System](#design-system)
+15. [Roadmap](#roadmap)
 
 ---
 
-## Project Status
+## Feature Overview
 
-| Part | What | Status |
-|------|------|--------|
-| 0 | Foundation — schema, prompts, Groq verified | ✅ Done |
-| 1 | Backend — FastAPI, 3 AI calls, JSON output | ✅ Done |
-| 2 | Renderer — python-docx, .docx output | ✅ Done |
-| 3 | Frontend — Next.js, landing page, 4-step flow | ✅ Done |
-| 4 | Frontend ↔ Backend connected locally | ✅ Done |
-| 5 | Deployment — Render (backend) + Vercel (frontend) | ✅ Done |
-| 6 | QA, polish, launch | ⬜ Next |
+### Core flow
+- **5-step wizard:** Profile upload → Job description → Review & edit → Template → Generate
+- **PDF upload or paste** — accepts LinkedIn PDF exports or raw pasted text
+- **AI extraction** — parses the uploaded CV into a structured JSON profile
+- **AI generation** — rewrites bullets with action verbs and metrics, strengthens the summary
+- **AI tailoring** — rewrites the entire CV to match the job description, weaving in extracted keywords
+- **Drag-and-drop section reordering** — users can reorder CV sections before generating
+- **Inline editing** — every field is editable in the review step before generation
 
----
+### CV content
+- **Keyword extraction** — technical, soft, and industry keywords pulled from the job description and injected throughout
+- **Role matching** — the CV title is set to the exact job title from the posting
+- **Dynamic page fitting** — content is scaled to fill exactly 1 page or 1.5–2 pages, never overflowing
+- **Skills always even** — skills section always renders in clean 2-column pairs (8, 10, or 12 items)
+- **Hyperlinked LinkedIn & GitHub** — contact line shows "LinkedIn" and "GitHub" as clickable words
+- **Location normalisation** — city/region details stripped to country-level only (e.g. "Tunis, Gouvernorat de Tunis" → "Tunisia")
 
-## Live URLs
+### Optional sections
+- **Languages** — dropdown selector for language name + proficiency level, renders in 2-column table
+- **Projects** — name, description, URL, year
+- Both sections are toggled on/off with a switch and auto-enabled if data is found in the source PDF
 
-| Service | URL |
-|---------|-----|
-| Frontend (production) | https://readytoapply.skander.cc |
-| Frontend (Vercel alias) | https://readytoapply-frontend.vercel.app |
-| Backend (Render) | https://readytoapply.onrender.com |
-| Backend health check | https://readytoapply.onrender.com/health |
+### Internationalisation
+- **Full EN/FR support** — every UI string is translated
+- **Auto-detection** — when a French job description is typed, the entire app switches to French
+- **Manual toggle** — EN/FR button in the top nav bar on every page
+- **CV content translation** — the generated CV is written in the language of the job description (French job → French CV, including section headings like "Expérience", "Compétences", etc.)
+
+### Templates
+Three `.docx` templates, all ATS-safe:
+- **Classic** — Calibri, centered header, black rules
+- **Modern** — navy name, blue accent rules, left-aligned
+- **Compact** — tight spacing, title + contact on one line
+
+### UX details
+- **Edit CV** button after generation — goes back to step 3 with all data cached, no re-extraction
+- **Start over** button — resets everything and returns to step 1
+- **Auto-generate on step 5** — no extra "Generate" click needed after choosing a template
+- **Anonymous review widget** — stars + optional comment after download, stored in `backend/reviews.json`
+- **GitHub badge** — persistent top-right button linking to this repo, always visible
+- **"Made by Skander Ben Abdallah"** in the footer
 
 ---
 
@@ -56,24 +88,48 @@ No accounts. No subscriptions. No stored data.
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Frontend | Next.js 16 + Tailwind CSS 4 | Deployed on Vercel |
-| Backend | Python 3.11 + FastAPI | Deployed on Render (free tier) |
-| AI | Groq API — llama-3.3-70b-versatile | 3 sequential LLM calls per request |
-| Document generation | python-docx | Outputs .docx files |
+| Frontend | Next.js 16 + Tailwind CSS 4 | App Router, TypeScript |
+| Backend | Python 3.11 + FastAPI | Async, Pydantic v2 |
+| AI | Groq API — `meta-llama/llama-4-scout-17b-16e-instruct` | 500K tokens/day free tier |
+| Document generation | python-docx | Outputs `.docx`, borderless tables for skills |
 | PDF parsing | pdfplumber | Extracts text from LinkedIn PDF exports |
-| Frontend hosting | Vercel (free) | Auto-deploys via Vercel CLI |
-| Backend hosting | Render (free tier) | Runs Python directly, no Docker on free tier |
-| Domain | Cloudflare (skander.cc) | Subdomain: readytoapply.skander.cc |
-| Container registry | AWS ECR (eu-west-3) | Image pushed but not actively used — kept for future scaling |
-| Fonts | Syne (display) + DM Sans (body) | Loaded via next/font/google |
+| Drag and drop | @dnd-kit/core + @dnd-kit/sortable | Section reordering in review step |
+| Rate limiting | slowapi | Per-IP limits on expensive endpoints |
+| Frontend hosting | Vercel | Auto-deploys via CLI or git |
+| Backend hosting | Render (Docker container) | Dockerfile in `backend/` |
+| Domain | Cloudflare (skander.cc) | `readytoapply.skander.cc` → Vercel |
+| Fonts | Syne (display) + DM Sans (body) | Loaded via `next/font/google` |
+| CI/CD | GitHub Actions | Tests + deploy on push to `main` |
 
 ### Why these choices
 
-- **Groq over OpenAI** — significantly faster inference, generous free tier, llama-3.3-70b gives strong CV quality
-- **Render over AWS App Runner** — App Runner has no free tier; Render free tier is sufficient for an early-stage app
-- **Vercel over Amplify/S3** — native Next.js support, zero-config deploys, free tier
-- **python-docx over LaTeX/HTML-to-PDF** — produces clean, editable .docx files that ATS systems handle reliably
+- **Groq over OpenAI** — faster inference, generous free tier, `llama-4-scout` gives 500K tokens/day vs 100K for the 70b model
+- **Render (Docker) over Render (Python)** — container gives full control over the environment, consistent with production
+- **Vercel over Amplify** — native Next.js support, zero-config, free tier
+- **python-docx over LaTeX/HTML-to-PDF** — produces clean, editable `.docx` files that ATS systems handle reliably
 - **No database** — stateless by design; no user data is stored at any point
+
+---
+
+## Architecture
+
+```
+User browser
+    │
+    ├── readytoapply.skander.cc  (Cloudflare DNS → Vercel)
+    │       └── Next.js 16 frontend
+    │               └── NEXT_PUBLIC_API_URL ──────────────────┐
+    │                                                          ▼
+    └────────────────────────────────────────── Render (Docker container)
+                                                    └── FastAPI backend
+                                                            ├── /extract   (3 LLM calls)
+                                                            ├── /generate  (1 LLM call)
+                                                            ├── /review    (file write)
+                                                            └── /health
+                                                                    │
+                                                                    └── Groq API
+                                                                        (llama-4-scout)
+```
 
 ---
 
@@ -81,161 +137,290 @@ No accounts. No subscriptions. No stored data.
 
 ```
 ReadyToApply/
+├── .github/
+│   ├── workflows/
+│   │   └── ci.yml              # CI/CD — test + deploy on push to main
+│   └── SECRETS.md              # How to configure GitHub secrets for deployment
+│
 ├── frontend/
 │   ├── app/
-│   │   ├── globals.css           # Design tokens, keyframes, base reset
-│   │   ├── layout.tsx            # Root layout, Syne + DM Sans fonts, metadata
-│   │   ├── page.tsx              # Landing page
+│   │   ├── globals.css         # Design tokens, keyframes, base reset
+│   │   ├── layout.tsx          # Root layout — LangProvider, NavBar, fonts, metadata
+│   │   ├── page.tsx            # Landing page (fully i18n)
 │   │   └── build/
-│   │       └── page.tsx          # 4-step flow controller
+│   │       └── page.tsx        # 5-step flow controller — state management
 │   ├── components/
-│   │   ├── StepIndicator.tsx     # Progress bar across steps
-│   │   ├── StepProfile.tsx       # Step 1 — PDF upload or paste
-│   │   ├── StepJob.tsx           # Step 2 — Job description input
-│   │   ├── StepTemplate.tsx      # Step 3 — Template picker
-│   │   └── StepDownload.tsx      # Step 4 — Generate + download
+│   │   ├── NavBar.tsx          # Fixed top bar — logo, EN/FR toggle, GitHub button
+│   │   ├── StepIndicator.tsx   # Progress bar + step labels (i18n)
+│   │   ├── StepProfile.tsx     # Step 1 — PDF upload or paste
+│   │   ├── StepJob.tsx         # Step 2 — Job description (auto-detects language)
+│   │   ├── StepReview.tsx      # Step 3 — Full CV editor with drag-and-drop sections
+│   │   ├── StepTemplate.tsx    # Step 4 — Template picker (button says "Generate CV")
+│   │   └── StepDownload.tsx    # Step 5 — Auto-generates, download + review widget
 │   ├── lib/
-│   │   └── api.ts                # All fetch calls to backend
-│   ├── public/
-│   │   └── logo.svg              # Brand logo (used in nav, footer, favicon)
-│   ├── AGENTS.md                 # AI coding agent rules for this project
-│   ├── CLAUDE.md                 # Claude-specific coding instructions
-│   ├── .vercel/                  # Vercel project config (do not edit manually)
-│   └── .env.local                # NEXT_PUBLIC_API_URL (not committed)
+│   │   ├── api.ts              # All fetch calls to backend (extractCV, generateCV)
+│   │   └── i18n.tsx            # Language context, all UI strings, detectJobLang()
+│   ├── tests/
+│   │   ├── setup.ts            # Vitest setup
+│   │   ├── i18n.test.ts        # Translation + language detection tests
+│   │   └── api.test.ts         # API error handling + downloadBlob tests
+│   ├── vitest.config.ts        # Vitest config (jsdom, path aliases)
+│   ├── next.config.js
+│   ├── package.json
+│   └── .env.local              # NEXT_PUBLIC_API_URL (not committed)
 │
 ├── backend/
-│   ├── main.py                   # FastAPI routes — /health, /generate
+│   ├── main.py                 # FastAPI app — routes, rate limiting, bot guard, CORS
 │   ├── models/
-│   │   └── schema.py             # Pydantic CV schema — enforced on every AI response
+│   │   └── schema.py           # Pydantic CV schema — enforced on every AI response
 │   ├── services/
-│   │   ├── parser.py             # PDF → raw text (pdfplumber)
-│   │   ├── extractor.py          # LLM call 1 — raw text → profile JSON
-│   │   ├── generator.py          # LLM call 2 — profile JSON → clean CV
-│   │   ├── tailor.py             # LLM call 3 — CV + job description → tailored CV
-│   │   ├── validator.py          # Schema enforcement + re-prompt logic
-│   │   └── renderer.py           # CVProfile → .docx bytes
+│   │   ├── parser.py           # PDF → raw text (pdfplumber)
+│   │   ├── extractor.py        # LLM call 1 — raw text → structured profile JSON
+│   │   ├── generator.py        # LLM call 2 — profile → clean CV (language-aware)
+│   │   ├── keywords.py         # LLM call — job description → keyword categories
+│   │   ├── tailor.py           # LLM call 3 — CV + job + keywords → tailored CV
+│   │   ├── validator.py        # Schema enforcement, truncation, retry logic
+│   │   └── renderer.py         # CVProfile → .docx bytes (3 templates, hyperlinks)
 │   ├── templates/
-│   │   ├── config.py             # Template styling config (font, size, color)
-│   │   └── base.py               # Shared docx rendering helpers
+│   │   ├── config.py           # Font, size, color config per template
+│   │   └── base.py             # Shared docx helpers (set_font, add_section_heading)
 │   ├── prompts/
-│   │   ├── extract.txt           # Prompt v1 — locked
-│   │   ├── generate.txt          # Prompt v1 — locked
-│   │   └── tailor.txt            # Prompt v1 — locked
-│   ├── requirements.txt          # Python dependencies
-│   ├── runtime.txt               # Python 3.11.0 — tells Render which version to use
-│   ├── .python-version           # Python 3.11.0 — backup version pin
-│   ├── .env                      # GROQ_API_KEY (not committed)
-│   └── Dockerfile                # Built and pushed to AWS ECR — not used by Render
+│   │   ├── extract.txt         # v2 — extracts languages + projects
+│   │   ├── generate.txt        # v3 — language-aware rewrite
+│   │   └── tailor.txt          # v5 — language detection, location normalisation, keywords
+│   ├── tests/
+│   │   ├── test_schema.py      # Schema validation rules
+│   │   ├── test_validator.py   # AI response parser
+│   │   ├── test_api.py         # FastAPI endpoint integration tests
+│   │   └── test_renderer.py    # Docx output validity tests
+│   ├── reviews.json            # Anonymous user reviews (auto-created, gitignored)
+│   ├── requirements.txt        # Production dependencies
+│   ├── requirements-dev.txt    # Dev + test dependencies
+│   ├── pytest.ini              # Pytest config
+│   ├── Dockerfile              # Container definition for Render
+│   ├── runtime.txt             # Python 3.11.0
+│   └── .env                    # GROQ_API_KEY (not committed)
 │
 ├── docs/
-│   ├── schema.json               # Canonical CV JSON schema
-│   ├── cv-rules.md               # Content rules injected into prompts
-│   └── prompts-guide.md          # How to version prompts safely
+│   └── schema.json             # Canonical CV JSON schema reference
 │
-├── .gitignore
 ├── .env.example
+├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Design System
+## AI Pipeline
 
-Defined in `frontend/app/globals.css` and enforced in `frontend/AGENTS.md`.
+Every `/extract` request runs 3 sequential LLM calls, then `/generate` runs 1 more:
 
-### Color Palette
+```
+POST /extract
+    ├── parser.py        PDF bytes → raw text (pdfplumber)
+    ├── extractor.py     LLM 1: raw text → structured CVProfile JSON
+    │                    (extract.txt prompt, temp=0.1)
+    ├── generator.py     LLM 2: CVProfile → rewritten CVProfile
+    │                    (generate.txt prompt, temp=0.3, language-aware)
+    ├── keywords.py      LLM: job description → {technical, soft, industry} keywords
+    │                    (inline prompt, temp=0.1)
+    └── returns: { cv: CVProfile, keywords: Keywords }
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--color-flame` | `#FF4D00` | Primary CTA, accents, icons |
-| `--color-ember` | `#FF8C42` | Hover states |
-| `--color-coal` | `#111111` | Page background |
-| `--color-ash` | `#1C1C1C` | Card surfaces |
-| `--color-smoke` | `#2E2E2E` | Borders, dividers |
-| `--color-chalk` | `#F5F0EB` | Primary text |
-| `--color-mist` | `#9A9A9A` | Secondary text, labels |
+POST /generate
+    ├── tailor.py        LLM 3: CVProfile + job description + keywords → tailored CVProfile
+    │                    (tailor.txt prompt, temp=0.3)
+    │                    — detects language, translates content, normalises location
+    │                    — weaves keywords into summary, bullets, skills
+    │                    — sets title to exact job title
+    │                    — enforces even skill count (8/10/12)
+    ├── renderer.py      CVProfile → .docx bytes
+    │                    — detects language from content for section headings
+    │                    — scales font/spacing to fit 1 or 1.5–2 pages
+    │                    — borderless 2-column table for skills + languages
+    │                    — hyperlinked LinkedIn + GitHub in contact line
+    └── returns: .docx file download
+```
 
-### Typography
+### Schema enforcement
 
-| Role | Font | Weights | Variable |
-|------|------|---------|----------|
-| Display / Headings | Syne | 400–800 | `--font-display` |
-| Body / UI | DM Sans | 300–600 | `--font-body` |
+Every LLM response is validated against `models/schema.py` (Pydantic v2). The validator:
+- Strips markdown fences from the response
+- Truncates summary to 800 chars
+- Truncates skills to 12, then rounds down to nearest even number
+- Truncates bullets to 6 per role
+- Defaults `languages` and `projects` to `[]` if missing
+- Retries up to 3 times on validation failure before raising
 
-### Design Principles
-- Dark background (`#111111`) with warm flame accents
-- No rounded corners on buttons — sharp edges (`rounded-none`)
-- Minimal animations — fade-up on hero, translate on arrow icons
-- Decorative elements: dot grid (bottom left), concentric rings (top right), `#2E2E2E` dividers
-- Grid layout for "How it works" section — `gap-px bg-[#2E2E2E]` creates thin separator lines between cards
+### Model
 
-### Logo
-- File: `frontend/public/logo.svg`
-- Used in: nav (24px), footer (18px), browser favicon
-- Placed inline next to brand name using `flex items-center gap-2`
+All LLM calls use `meta-llama/llama-4-scout-17b-16e-instruct` via Groq:
+- 500K tokens/day on the free tier (vs 100K for llama-3.3-70b)
+- Strong instruction-following for structured JSON output
+- Fast inference (~3–5s per call)
 
 ---
 
-## How the Backend Works
+## CV Templates
 
-Every `/generate` request runs 3 sequential AI calls:
+All templates are ATS-safe (no images, no text boxes, no headers/footers with content).
 
+| Template | Font | Style | Best for |
+|----------|------|-------|----------|
+| Classic | Calibri | Centered header, black underline rules | Traditional industries |
+| Modern | Calibri | Left-aligned, navy name, blue accent rules | Tech, startups |
+| Compact | Calibri | Tight spacing, title+contact on one line | Dense experience |
+
+### Page fitting
+
+The renderer estimates content height and scales accordingly:
+- **≤42 lines** → expand spacing + font size to fill 1 page
+- **≥80 lines** → compress spacing + font size to stay within 2 pages
+- **In between** → default spacing (targets ~1.5 pages)
+
+### Skills rendering
+
+Skills are rendered in a borderless 2-column Word table. The count is always even (padded with an empty cell if odd) so the table never has a half-empty row.
+
+---
+
+## Internationalisation (EN/FR)
+
+### How it works
+
+A React context (`lib/i18n.tsx`) holds the current language (`"en" | "fr"`) and a `u(key)` translation function. Every component calls `useLang()` to get translated strings.
+
+```tsx
+const { lang, setLang, u } = useLang();
+// u("continue") → "Continue" or "Continuer"
 ```
-POST /generate
-    ├── parser.py       PDF upload → extract raw text (pdfplumber)
-    ├── extractor.py    LLM call 1: raw text → structured JSON profile
-    ├── generator.py    LLM call 2: rewrite bullets + summary to be strong
-    ├── tailor.py       LLM call 3: tailor everything to the job description
-    ├── validator.py    enforce Pydantic schema on every AI response
-    │                   retry up to 3x on invalid responses before erroring
-    └── renderer.py     CVProfile JSON → .docx bytes → file download response
+
+### Auto-detection
+
+When the user types a job description in `StepJob`, the text is analysed after 80+ characters. If enough French function words are detected, `setLang("fr")` is called and the entire app switches to French instantly.
+
+```ts
+export function detectJobLang(text: string): Lang {
+  const hits = FR_WORDS.filter(w => text.toLowerCase().includes(w)).length;
+  return hits >= 4 ? "fr" : "en";
+}
 ```
 
-### Schema Contract
+### CV content translation
 
-`backend/models/schema.py` is the contract between the AI and the renderer. Every LLM response is validated against it before the next step runs. If validation fails, the call is re-prompted up to 3 times. If it still fails after 3 attempts, a 500 error is returned.
+The `generate_cv` call receives the detected language and instructs the LLM to write all content in that language. The `tailor_cv` call reinforces this — the entire output (summary, bullets, skills, project descriptions) is in the job description's language.
 
-### Routes
+The renderer detects the language from the CV content itself and uses the correct section headings:
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Returns `{"status":"ok"}` — used for uptime checks |
-| `POST` | `/generate` | Main endpoint — accepts PDF + job description, returns .docx |
+| English | French |
+|---------|--------|
+| Summary | Résumé |
+| Experience | Expérience |
+| Education | Formation |
+| Skills | Compétences |
+| Projects | Projets |
+| Languages | Langues |
+| Certifications | Certifications |
+
+---
+
+## Security & Rate Limiting
+
+### Rate limits (per IP, via slowapi)
+
+| Endpoint | Limit |
+|----------|-------|
+| `/extract` | 5/minute, 20/hour |
+| `/generate` | 10/minute, 40/hour |
+| All others | 60/minute |
+
+### Bot guard
+
+The request middleware blocks common bot/scraper user agents (`python-requests`, `curl/`, `wget/`, `go-http`, `java/`) on POST endpoints. `httpx` is explicitly allowed (used by the test client).
 
 ### CORS
 
-The backend allows requests from the Vercel frontend domain. If you add a custom domain, update the CORS origins in `main.py`.
+Only the following origins are allowed:
+- `https://readytoapply.skander.cc`
+- `https://readytoapply-frontend.vercel.app`
+- `http://localhost:3000` (local dev)
+
+### Input validation
+
+- PDF max 5MB
+- Job description max 8,000 characters
+- Raw extracted text capped at 15,000 characters before LLM processing
+- Template name validated against an allowlist (`classic`, `modern`, `compact`)
+- Review stars validated as integer 1–5
+
+---
+
+## CI/CD Pipeline
+
+Defined in `.github/workflows/ci.yml`. Triggers on every push and pull request to `main`.
+
+```
+push to main
+    │
+    ├── backend job
+    │   ├── Setup Python 3.11
+    │   ├── pip install -r requirements-dev.txt
+    │   └── pytest tests/ -v --tb=short
+    │
+    ├── frontend job (parallel)
+    │   ├── Setup Node 20
+    │   ├── npm ci
+    │   ├── npm test (vitest --run)
+    │   └── tsc --noEmit (type check)
+    │
+    └── (on push to main only, after both pass)
+        ├── deploy-backend
+        │   └── curl RENDER_DEPLOY_HOOK_URL  (triggers Render redeploy)
+        └── deploy-frontend
+            └── vercel --prod --token $VERCEL_TOKEN
+```
+
+### Required GitHub secrets
+
+| Secret | Where to get it |
+|--------|----------------|
+| `VERCEL_TOKEN` | vercel.com → Account Settings → Tokens |
+| `VERCEL_ORG_ID` | `frontend/.vercel/project.json` → `orgId` |
+| `VERCEL_PROJECT_ID` | `frontend/.vercel/project.json` → `projectId` |
+| `RENDER_DEPLOY_HOOK_URL` | Render dashboard → service → Settings → Deploy Hook |
+
+See `.github/SECRETS.md` for step-by-step setup instructions.
 
 ---
 
 ## Running Locally
 
 ### Prerequisites
+
 - Python 3.11
-- Node.js 18+
-- A Groq API key (free at [console.groq.com](https://console.groq.com))
+- Node.js 20+
+- A Groq API key — free at [console.groq.com](https://console.groq.com)
 
 ### Backend
 
-```powershell
+```bash
 cd backend
 python -m venv venv
-venv\Scripts\Activate.ps1
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
-# Runs on http://127.0.0.1:8000
+# → http://127.0.0.1:8000
 ```
 
 ### Frontend
 
-```powershell
+```bash
 cd frontend
 npm install
 npm run dev
-# Runs on http://localhost:3000
+# → http://localhost:3000
 ```
 
-### Required env files
+### Environment files
 
 `backend/.env`
 ```
@@ -247,284 +432,162 @@ GROQ_API_KEY=your_key_here
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 ```
 
-### Docker (local testing only)
+### Docker (local backend testing)
 
-The Dockerfile builds a production image of the backend. Use this to test the container locally before pushing to ECR.
-
-```powershell
+```bash
 cd backend
 docker build -t readytoapply-backend .
 docker run -p 8000:8000 --env-file .env readytoapply-backend
-# Test: http://localhost:8000/health
+# → http://localhost:8000/health
 ```
 
 ---
 
 ## Deployment
 
-### Architecture
+### Backend — Render (Docker)
 
-```
-User
- │
- ├── readytoapply.skander.cc  (Cloudflare DNS → Vercel)
- │       └── Next.js frontend
- │               └── NEXT_PUBLIC_API_URL → Render backend
- │
- └── readytoapply.onrender.com
-         └── FastAPI backend (Python 3.11, Render free tier)
-                 └── GROQ_API_KEY (set in Render environment)
-```
+1. Create a new **Web Service** on [render.com](https://render.com)
+2. Connect your GitHub repo
+3. Set root directory to `backend/`
+4. Runtime: **Docker**
+5. Set environment variable: `GROQ_API_KEY=your_key`
+6. Copy the Deploy Hook URL → add as `RENDER_DEPLOY_HOOK_URL` in GitHub secrets
 
-### Backend — Render
-
-The backend runs as a Python web service on Render's free tier.
-
-- **Platform:** Render
-- **Runtime:** Python 3.11
-- **Root directory:** `backend/`
-- **Build command:** `pip install -r requirements.txt`
-- **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Environment variables:** `GROQ_API_KEY` (set in Render dashboard)
-
-> ⚠️ **Free tier spin-down:** Render's free tier spins down the service after 15 minutes of inactivity. The first request after idle will take 30–60 seconds to respond while the service wakes up. This is expected behaviour on the free tier.
-
-#### Re-deploying the backend
-
-Push to `main` — Render auto-deploys on commit if auto-deploy is enabled. Or trigger manually from the Render dashboard.
+> The free tier spins down after 15 minutes of inactivity. First request after idle takes 30–60s. Upgrade to Starter ($7/mo) to eliminate cold starts.
 
 ### Frontend — Vercel
 
-The frontend is a Next.js app deployed via Vercel CLI.
-
-- **Platform:** Vercel
-- **Framework:** Next.js 16
-- **Root directory:** `frontend/`
-- **Environment variables:** `NEXT_PUBLIC_API_URL=https://readytoapply.onrender.com`
-
-#### Re-deploying the frontend
-
-```powershell
+```bash
 cd frontend
-npx vercel --prod
+npx vercel link          # first time only — generates .vercel/project.json
+npx vercel --prod        # deploy
 ```
 
-### AWS ECR (kept for future use)
-
-A Docker image of the backend was built and pushed to AWS ECR during initial deployment exploration. It is not currently serving traffic but is available if you want to migrate to a container-based hosting solution (e.g. AWS App Runner, ECS, Fly.io).
-
-- **Registry:** `166799230506.dkr.ecr.eu-west-3.amazonaws.com/readytoapply-backend`
-- **Region:** `eu-west-3` (Paris)
-- **Tag:** `latest`
-
-To push a new image:
-```powershell
-$token = aws ecr get-login-password --region eu-west-3
-docker login --username AWS --password $token 166799230506.dkr.ecr.eu-west-3.amazonaws.com
-docker build -t readytoapply-backend ./backend
-docker tag readytoapply-backend:latest 166799230506.dkr.ecr.eu-west-3.amazonaws.com/readytoapply-backend:latest
-docker push 166799230506.dkr.ecr.eu-west-3.amazonaws.com/readytoapply-backend:latest
+Set environment variable in Vercel dashboard:
+```
+NEXT_PUBLIC_API_URL=https://your-render-service.onrender.com
 ```
 
----
-
-## Updating the Live App
-
-### Frontend change (UI, copy, styles)
-
-```powershell
-# Make your changes in frontend/
-cd frontend
-npx vercel --prod
-```
-
-### Backend change (API, AI logic, prompts)
-
-```powershell
-# Make your changes in backend/
-git add .
-git commit -m "feat: your change description"
-git push origin main
-# Render auto-deploys on push to main
-```
-
-### Both at once
-
-```powershell
-git add .
-git commit -m "feat: your change description"
-git push origin main
-cd frontend
-npx vercel --prod
-```
-
----
-
-## Domain & DNS
-
-- **Registrar:** Cloudflare (skander.cc)
-- **Subdomain:** `readytoapply.skander.cc` → points to Vercel
-
-### DNS record in Cloudflare
+### DNS (Cloudflare)
 
 | Type | Name | Target | Proxy |
 |------|------|--------|-------|
 | CNAME | `readytoapply` | `cname.vercel-dns.com` | DNS only (grey) |
 
-> Keep proxy status as **DNS only** (grey cloud). Enabling Cloudflare proxy (orange) can interfere with Vercel's SSL certificate provisioning.
-
-### Adding a custom domain to the backend (optional)
-
-If you want a clean URL for the API (e.g. `api.readytoapply.skander.cc`):
-1. Add a CNAME in Cloudflare pointing to your Render service URL
-2. Add the custom domain in Render dashboard → Settings → Custom Domains
-3. Update `NEXT_PUBLIC_API_URL` in Vercel to the new API domain
-4. Redeploy frontend: `npx vercel --prod`
+Keep proxy **off** (grey cloud) — Cloudflare proxy interferes with Vercel SSL.
 
 ---
 
-## Prompts
+## Environment Variables
 
-Prompts are locked. Never edit prompt files in place.
+### Backend
 
-### To change a prompt
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GROQ_API_KEY` | Yes | Groq API key for all LLM calls |
 
-1. Create a new versioned file e.g. `extract_v2.txt`
-2. Update the reference in the corresponding service file (`extractor.py`, `generator.py`, or `tailor.py`)
-3. Document why in `docs/prompts-guide.md`
-4. Test locally before pushing
+### Frontend
 
-### Current prompt versions
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Yes | Backend base URL (no trailing slash) |
 
-| Prompt | File | Version | Status |
-|--------|------|---------|--------|
-| Extract | `prompts/extract.txt` | v1 | Locked |
-| Generate | `prompts/generate.txt` | v1 | Locked |
-| Tailor | `prompts/tailor.txt` | v1 | Locked |
+---
+
+## Tests
+
+### Backend (pytest)
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+| File | What it tests |
+|------|--------------|
+| `test_schema.py` | Pydantic validators — summary truncation, skills even cap, bullets cap, optional fields |
+| `test_validator.py` | AI response parser — JSON stripping, field truncation, missing field defaults |
+| `test_api.py` | FastAPI endpoints — `/health`, `/generate`, `/review` with mocked LLM |
+| `test_renderer.py` | Docx output — all 3 templates produce valid PK bytes, odd skills don't crash |
+
+### Frontend (vitest)
+
+```bash
+cd frontend
+npm test
+```
+
+| File | What it tests |
+|------|--------------|
+| `tests/i18n.test.ts` | `u()` translation function, `detectJobLang()` |
+| `tests/api.test.ts` | Network error handling, API error detail propagation, `downloadBlob()` |
+
+---
+
+## Design System
+
+### Color palette
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| Flame | `#FF4D00` | Primary CTA, accents, active states |
+| Ember | `#FF8C42` | Hover states |
+| Coal | `#111111` | Page background |
+| Ash | `#1C1C1C` | Card/input surfaces |
+| Smoke | `#2E2E2E` | Borders, dividers |
+| Chalk | `#F5F0EB` | Primary text |
+| Mist | `#9A9A9A` | Secondary text, labels |
+
+### Typography
+
+| Role | Font | Variable |
+|------|------|----------|
+| Headings / display | Syne | `--font-display` |
+| Body / UI | DM Sans | `--font-body` |
+
+### Principles
+
+- Dark background with warm flame accents
+- Sharp edges — no rounded corners on interactive elements
+- Minimal animation — fade-up on mount, translate on arrow hover
+- `gap-px bg-[#2E2E2E]` grid pattern for card separators
+
+---
+
+## Roadmap
+
+### Immediate
+- [ ] Keep-alive ping to prevent Render cold starts (cron-job.org, free)
+- [ ] `og:image` meta tag for social link previews
+- [ ] Mobile QA pass on real devices
+
+### Near-term features
+- [ ] Cover letter generation (4th LLM call, same flow)
+- [ ] HTML preview before download
+- [ ] Job description URL input (auto-scrape the posting)
+- [ ] Keyword highlighting in the review step
+
+### Infrastructure (when traffic grows)
+- [ ] Upgrade Render to Starter ($7/mo) — eliminates cold starts
+- [ ] Add Plausible analytics (privacy-friendly)
+- [ ] Move to Render paid tier or Fly.io for better performance
 
 ---
 
 ## Contributing
 
-1. All work happens on `dev` branch
-2. Merge to `main` only for releases
-3. Commit format: `feat:`, `fix:`, `chore:`
-4. To force-sync `main` with `dev`:
+```
+main     — production branch, auto-deploys on push
+dev      — development branch, merge to main for releases
+```
 
-```powershell
+Commit format: `feat:`, `fix:`, `chore:`, `docs:`
+
+To sync main with dev:
+```bash
 git checkout main
 git reset --hard dev
 git push origin main --force
 ```
-
----
-
-## Next Steps & Roadmap
-
-### Part 6 — QA & Polish (immediate)
-
-These are the things to fix/improve before calling the app launch-ready.
-
-#### Backend
-- [ ] **CORS hardening** — lock CORS origins to `readytoapply.skander.cc` only, remove wildcard if present
-- [ ] **Error messages** — return user-friendly error messages from `/generate` instead of raw 500s
-- [ ] **Request validation** — add file size limit on PDF upload (max 5MB)
-- [ ] **Timeout handling** — add a clear timeout error if Groq takes too long (currently silent)
-- [ ] **Logging** — add basic request logging (timestamp, endpoint, status, duration)
-
-#### Frontend
-- [ ] **Loading state** — show a proper loading animation during the generate step (currently basic)
-- [ ] **Error handling** — show a clear error message if the backend fails or times out
-- [ ] **Mobile testing** — test the full flow on a real mobile device
-- [ ] **Render cold start UX** — add a "warming up..." message if the backend takes >5s to respond
-- [ ] **Meta tags** — add `og:image` for link previews when sharing on social
-
-#### QA checklist
-- [ ] Upload a real LinkedIn PDF export end to end
-- [ ] Test with a long job description (3000+ words)
-- [ ] Test with a short job description (<100 words)
-- [ ] Test on Safari (iOS)
-- [ ] Test from a different network (not your home WiFi)
-- [ ] Verify downloaded .docx opens correctly in Word and Google Docs
-
----
-
-### Scaling — When You Start Getting Traffic
-
-#### Fix the Render cold start problem
-The free tier spins down after 15 minutes of inactivity. Two options:
-- **Upgrade to Render Starter ($7/month)** — always-on, no spin-down
-- **Add a keep-alive ping** — set up a cron job (e.g. via cron-job.org, free) that hits `/health` every 10 minutes to keep the service warm
-
-#### Move backend to a paid tier when needed
-Current free tier limits: 512MB RAM, 0.1 CPU. If you start seeing slow responses or OOM errors under load, upgrade to Render Starter ($7/month) which gives 512MB RAM and 0.5 CPU with zero downtime deploys.
-
-#### Add a CDN for the backend (optional)
-If you want the API URL to look clean, add `api.readytoapply.skander.cc` as described in the Domain section above.
-
----
-
-### Feature Roadmap
-
-#### High priority
-- [ ] **Multiple CV templates** — add 2-3 more visual styles in `backend/templates/` and surface them in `StepTemplate.tsx`
-- [ ] **Cover letter generation** — add a 4th LLM call that generates a tailored cover letter alongside the CV
-- [ ] **LinkedIn URL input** — instead of PDF upload, accept a LinkedIn profile URL and scrape it (requires a scraping solution)
-- [ ] **Plain text input** — let users paste raw CV text instead of uploading a PDF (already partially supported — polish the UX)
-
-#### Medium priority
-- [ ] **Preview before download** — show a rendered HTML preview of the CV before the user downloads the .docx
-- [ ] **Multiple download formats** — offer both .docx and .pdf output
-- [ ] **Job description URL** — accept a job posting URL and scrape the description automatically
-- [ ] **Keyword highlighting** — show which keywords from the job description were injected into the CV
-
-#### Lower priority / future
-- [ ] **Analytics** — add Plausible or Fathom (privacy-friendly) to track page views and conversion
-- [ ] **Feedback loop** — add a simple thumbs up/down on the download step to collect quality signal
-- [ ] **API rate limiting** — add rate limiting on `/generate` to prevent abuse (e.g. slowapi)
-- [ ] **Waitlist / email capture** — add an email input before the flow for users who want to be notified of new features
-- [ ] **Accounts (optional)** — if you ever want saved CVs, add auth via Clerk or Supabase Auth — but keep the no-account flow as the default
-
----
-
-### Infrastructure Roadmap (when ready to scale beyond free tier)
-
-| When | What | Why |
-|------|------|-----|
-| >100 req/day | Upgrade Render to Starter ($7/mo) | Eliminate cold starts |
-| >1000 req/day | Move backend to AWS ECS + ECR | Better scaling, use the Docker image already in ECR |
-| Custom domain for API | Add `api.readytoapply.skander.cc` | Cleaner URLs, easier to swap backends |
-| Need SSL on API | AWS Certificate Manager (us-east-1) | Free SSL, attach to CloudFront or ALB |
-| Need CI/CD pipeline | GitHub Actions | Auto-test on PR, auto-deploy on merge to main |
-
-#### GitHub Actions CI/CD (when ready)
-
-A simple pipeline for the backend would:
-1. On PR to `main` — run `pytest` on the backend
-2. On merge to `main` — build Docker image, push to ECR, trigger Render redeploy
-
-A simple pipeline for the frontend would:
-1. On merge to `main` — run `next build` to verify it compiles
-2. Vercel handles the actual deploy automatically via git integration (once you switch from CLI to git-based deploys)
-
----
-
-## Environment Variables Reference
-
-### Backend (set in Render dashboard)
-
-| Variable | Description | Where to get it |
-|----------|-------------|-----------------|
-| `GROQ_API_KEY` | Groq API key for LLM calls | console.groq.com |
-
-### Frontend (set via `npx vercel env add`)
-
-| Variable | Description | Value |
-|----------|-------------|-------|
-| `NEXT_PUBLIC_API_URL` | Backend base URL | `https://readytoapply.onrender.com` |
-
----
-
-## License
-
-MIT

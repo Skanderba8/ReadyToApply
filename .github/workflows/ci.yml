@@ -67,12 +67,15 @@ jobs:
 
     steps:
       - name: Trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            --fail
-        # Set RENDER_DEPLOY_HOOK_URL in GitHub repo secrets
-        # Get it from: Render dashboard → your service → Settings → Deploy Hook
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "⚠️  RENDER_DEPLOY_HOOK_URL secret not set — skipping deploy"
+            exit 0
+          fi
+          curl -sf -X POST "$RENDER_DEPLOY_HOOK_URL"
+          echo "✅ Render deploy triggered"
 
   # ── Deploy frontend to Vercel ──────────────────────────────────────────────
   deploy-frontend:
@@ -94,9 +97,14 @@ jobs:
         run: npm install -g vercel
 
       - name: Deploy to Vercel
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: vercel --prod --token=$VERCEL_TOKEN --yes
+        working-directory: frontend
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "⚠️  VERCEL_TOKEN secret not set — skipping deploy"
+            exit 0
+          fi
+          vercel --prod --token "$VERCEL_TOKEN" --yes
