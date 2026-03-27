@@ -41,7 +41,7 @@ async def test_health():
 @pytest.mark.asyncio
 async def test_generate_returns_docx():
     """generate endpoint returns a .docx file when given valid CV data."""
-    with patch("services.tailor.tailor_cv") as mock_tailor:
+    with patch("main.tailor_cv") as mock_tailor:
         from models.schema import CVProfile
         mock_tailor.return_value = CVProfile(**MOCK_PROFILE)
 

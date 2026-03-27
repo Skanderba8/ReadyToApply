@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { downloadBlob } from "../lib/api";
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
 describe("downloadBlob()", () => {
   it("creates and clicks an anchor element", () => {
     const mockUrl = "blob:http://localhost/test";
@@ -14,16 +10,13 @@ describe("downloadBlob()", () => {
     });
 
     const clickSpy = vi.fn();
-    const appendSpy = vi.fn();
-    const removeSpy = vi.fn();
-
     vi.spyOn(document, "createElement").mockReturnValue({
       href: "",
       download: "",
       click: clickSpy,
     } as unknown as HTMLAnchorElement);
-    vi.spyOn(document.body, "appendChild").mockImplementation(appendSpy);
-    vi.spyOn(document.body, "removeChild").mockImplementation(removeSpy);
+    vi.spyOn(document.body, "appendChild").mockImplementation(vi.fn());
+    vi.spyOn(document.body, "removeChild").mockImplementation(vi.fn());
 
     const blob = new Blob(["test"], { type: "text/plain" });
     downloadBlob(blob, "test.docx");
@@ -33,20 +26,23 @@ describe("downloadBlob()", () => {
 });
 
 describe("API error handling", () => {
-  beforeEach(() => mockFetch.mockReset());
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
 
   it("throws on network error", async () => {
-    mockFetch.mockRejectedValue(new Error("Network error"));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+    // Re-import after stubbing so the module picks up the new fetch
     const { extractCV } = await import("../lib/api");
     const file = new File(["pdf content"], "cv.pdf", { type: "application/pdf" });
     await expect(extractCV(file, null, "job desc")).rejects.toThrow(/network error/i);
   });
 
   it("throws with API error detail on non-ok response", async () => {
-    mockFetch.mockResolvedValue({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,
       json: async () => ({ detail: "Rate limit exceeded" }),
-    });
+    }));
     const { generateCV } = await import("../lib/api");
     const cvData = {
       name: "Test", title: "Dev",
