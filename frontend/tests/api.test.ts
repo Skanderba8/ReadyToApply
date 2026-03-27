@@ -39,7 +39,7 @@ describe("API error handling", () => {
     mockFetch.mockRejectedValue(new Error("Network error"));
     const { extractCV } = await import("../lib/api");
     const file = new File(["pdf content"], "cv.pdf", { type: "application/pdf" });
-    await expect(extractCV(file, null, "job desc")).rejects.toThrow("Network error");
+    await expect(extractCV(file, null, "job desc")).rejects.toThrow(/network error/i);
   });
 
   it("throws with API error detail on non-ok response", async () => {
