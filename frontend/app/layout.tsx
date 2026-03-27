@@ -19,16 +19,31 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://readytoapply.work'), // Absolute base for all links
   title: "ReadyToApply — Your CV, tailored in seconds.",
-  description: "Upload your LinkedIn profile, paste a job description, get a tailored ATS-clean CV in seconds.",
+  description: "Upload your LinkedIn profile, paste a job description, and get a tailored ATS-clean CV in seconds. The ultimate job application automation tool.",
+  alternates: {
+    canonical: '/', // Tells Google THIS is the master URL
+  },
   openGraph: {
     title: "ReadyToApply",
-    description: "Your CV, tailored in seconds.",
-    type: "website",
+    description: "Automate your job applications with ATS-friendly CVs.",
+    url: 'https://readytoapply.work',
+    siteName: 'ReadyToApply',
+    images: [
+      {
+        url: '/og-image.png', // Add an image at public/og-image.png for LinkedIn/Twitter previews
+        width: 1200,
+        height: 630,
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
   },
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ReadyToApply',
+    description: 'Tailored ATS-clean CVs in seconds.',
   },
 };
 
