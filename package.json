@@ -1,5 +1,9 @@
 {
+  "scripts": {
+    "dev": "npx concurrently -n \"WEB,API\" -c \"cyan,magenta\" --kill-others \"cd frontend && npm run dev\" \"cd backend && venv\\\\Scripts\\\\uvicorn main:app --reload\""
+  },
   "devDependencies": {
-    "@types/aws-lambda": "8.10.161"
+    "@types/aws-lambda": "8.10.161",
+    "concurrently": "^8.2.2"
   }
 }

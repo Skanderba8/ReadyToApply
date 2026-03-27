@@ -2,30 +2,19 @@
 
 import { useState } from "react";
 import { Download, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
-import { generateCV, downloadBlob } from "@/lib/api";
+import { generateCV, downloadBlob, CVData } from "@/lib/api";
 
 interface StepDownloadProps {
-  file: File | null;
-  pastedText: string;
+  cvData: CVData;
   jobDescription: string;
   template: string;
   onBack: () => void;
 }
 
-type Status = "idle" | "extracting" | "writing" | "tailoring" | "done" | "error";
-
-const STATUS_MESSAGES: Record<Status, string> = {
-  idle: "",
-  extracting: "Extracting your profile...",
-  writing: "Writing your CV...",
-  tailoring: "Tailoring to the job...",
-  done: "Your CV is ready.",
-  error: "",
-};
+type Status = "idle" | "tailoring" | "done" | "error";
 
 export default function StepDownload({
-  file,
-  pastedText,
+  cvData,
   jobDescription,
   template,
   onBack,
@@ -33,35 +22,34 @@ export default function StepDownload({
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [cvBlob, setCvBlob] = useState<Blob | null>(null);
+  const [filename, setFilename] = useState("CV.docx");
 
   const handleGenerate = async () => {
     setCvBlob(null);
     setErrorMessage("");
-
-    // Cycle through status messages to give feedback during the AI calls
-    setStatus("extracting");
-    const t1 = setTimeout(() => setStatus("writing"), 6000);
-    const t2 = setTimeout(() => setStatus("tailoring"), 14000);
+    setStatus("tailoring");
 
     try {
-      const blob = await generateCV(file, pastedText, jobDescription, template);
-      clearTimeout(t1);
-      clearTimeout(t2);
+      const blob = await generateCV(cvData, jobDescription, template);
+
+      // Mirror the backend filename logic
+      const safeName = cvData.name.replace(/\s+/g, "_").replace(/\//g, "_");
+      const name = `CV_${safeName}.docx`;
+      setFilename(name);
+
       setCvBlob(blob);
       setStatus("done");
     } catch (err) {
-      clearTimeout(t1);
-      clearTimeout(t2);
       setStatus("error");
       setErrorMessage(err instanceof Error ? err.message : "Something went wrong.");
     }
   };
 
   const handleDownload = () => {
-    if (cvBlob) downloadBlob(cvBlob, "ReadyToApply_CV.docx");
+    if (cvBlob) downloadBlob(cvBlob, filename);
   };
 
-  const isLoading = ["extracting", "writing", "tailoring"].includes(status);
+  const isLoading = status === "tailoring";
 
   return (
     <div className="animate-fade-up">
@@ -72,10 +60,10 @@ export default function StepDownload({
         Generate your CV
       </h2>
       <p className="text-[#9A9A9A] mb-10 text-sm">
-        Three AI passes — extract, write, tailor. Takes about 20 seconds.
+        One final AI pass to tailor your CV to the job. Takes about 10 seconds.
       </p>
 
-      {/* Idle state */}
+      {/* Idle */}
       {status === "idle" && (
         <button
           onClick={handleGenerate}
@@ -87,7 +75,7 @@ export default function StepDownload({
         </button>
       )}
 
-      {/* Loading state */}
+      {/* Loading */}
       {isLoading && (
         <div className="flex items-center gap-4 px-8 py-4 border border-[#2E2E2E]">
           <RefreshCw
@@ -97,20 +85,20 @@ export default function StepDownload({
             aria-hidden="true"
           />
           <span
-            className="text-sm text-[#F5F0EB] animate-pulse-flame"
+            className="text-sm text-[#F5F0EB] animate-pulse"
             style={{ fontFamily: "var(--font-body)" }}
           >
-            {STATUS_MESSAGES[status]}
+            Tailoring your CV to the job…
           </span>
         </div>
       )}
 
-      {/* Success state */}
+      {/* Success */}
       {status === "done" && cvBlob && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-4 border border-[#2E2E2E]">
             <CheckCircle size={18} style={{ color: "#FF4D00" }} aria-hidden="true" />
-            <span className="text-sm text-[#F5F0EB]">ReadyToApply_CV.docx</span>
+            <span className="text-sm text-[#F5F0EB]">{filename}</span>
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -132,7 +120,7 @@ export default function StepDownload({
         </div>
       )}
 
-      {/* Error state */}
+      {/* Error */}
       {status === "error" && (
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-4 border border-red-900 bg-red-950/30">
@@ -153,7 +141,7 @@ export default function StepDownload({
         </div>
       )}
 
-      {/* Back button — only show before generation starts */}
+      {/* Back — only before generation */}
       {status === "idle" && (
         <div className="mt-6">
           <button

@@ -13,18 +13,58 @@ const TEMPLATES = [
     name: "Classic",
     description: "Clean, structured, ATS-optimised.",
     available: true,
+    preview: (
+      <div className="mb-6 p-4 bg-[#1C1C1C] h-32 flex flex-col justify-center gap-2">
+        <div className="h-2 w-1/2 bg-[#2E2E2E] rounded-sm mx-auto" />
+        <div className="h-1 w-3/4 bg-[#2E2E2E] rounded-sm mx-auto" />
+        <div className="mt-2 space-y-1">
+          <div className="h-1 w-full bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-5/6 bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-4/6 bg-[#2E2E2E] rounded-sm" />
+        </div>
+      </div>
+    ),
   },
   {
     id: "modern",
     name: "Modern",
-    description: "Bold headings, sidebar layout.",
-    available: false,
+    description: "Bold navy header, accent rules.",
+    available: true,
+    preview: (
+      <div className="mb-6 h-32 flex flex-col overflow-hidden bg-[#1C1C1C]">
+        {/* navy header strip */}
+        <div className="bg-[#1F4E79] px-3 py-2 flex flex-col gap-1 items-center">
+          <div className="h-2 w-2/5 bg-[#FFFFFF33] rounded-sm" />
+          <div className="h-1 w-3/5 bg-[#FFFFFF22] rounded-sm" />
+        </div>
+        {/* body lines */}
+        <div className="flex-1 p-3 space-y-1.5">
+          <div className="h-1.5 w-1/3 bg-[#2E75B6] rounded-sm" />
+          <div className="h-1 w-full bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-5/6 bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-4/6 bg-[#2E2E2E] rounded-sm" />
+        </div>
+      </div>
+    ),
   },
   {
     id: "compact",
     name: "Compact",
     description: "Maximum content, minimal space.",
-    available: false,
+    available: true,
+    preview: (
+      <div className="mb-6 p-3 bg-[#1C1C1C] h-32 flex flex-col justify-start gap-1">
+        <div className="h-1.5 w-2/5 bg-[#2E2E2E] rounded-sm mx-auto" />
+        <div className="h-1 w-4/5 bg-[#2E2E2E] rounded-sm mx-auto" />
+        <div className="mt-1 space-y-0.5">
+          <div className="h-1 w-full bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-full bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-5/6 bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-full bg-[#2E2E2E] rounded-sm" />
+          <div className="h-1 w-4/6 bg-[#2E2E2E] rounded-sm" />
+        </div>
+      </div>
+    ),
   },
 ];
 
@@ -54,31 +94,26 @@ export default function StepTemplate({
             disabled={!template.available}
             className="relative bg-[#111111] p-6 text-left transition-all duration-200 group"
             style={{
-              border: selectedTemplate === template.id
-                ? "1px solid #FF4D00"
-                : "1px solid transparent",
+              border:
+                selectedTemplate === template.id
+                  ? "1px solid #FF4D00"
+                  : "1px solid transparent",
               cursor: template.available ? "pointer" : "default",
               opacity: template.available ? 1 : 0.5,
             }}
             aria-pressed={selectedTemplate === template.id}
           >
-            {/* Abstract CV preview */}
-            <div className="mb-6 p-4 bg-[#1C1C1C] h-32 flex flex-col justify-center gap-2">
-              <div className="h-2 w-1/2 bg-[#2E2E2E] rounded-sm" />
-              <div className="h-1 w-3/4 bg-[#2E2E2E] rounded-sm" />
-              <div className="mt-2 space-y-1">
-                <div className="h-1 w-full bg-[#2E2E2E] rounded-sm" />
-                <div className="h-1 w-5/6 bg-[#2E2E2E] rounded-sm" />
-                <div className="h-1 w-4/6 bg-[#2E2E2E] rounded-sm" />
-              </div>
-              {selectedTemplate === template.id && (
-                <div
-                  className="absolute top-3 right-3 w-2 h-2 rounded-full"
-                  style={{ backgroundColor: "#FF4D00" }}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
+            {/* Selected indicator dot */}
+            {selectedTemplate === template.id && (
+              <div
+                className="absolute top-3 right-3 w-2 h-2 rounded-full"
+                style={{ backgroundColor: "#FF4D00" }}
+                aria-hidden="true"
+              />
+            )}
+
+            {/* Template preview */}
+            {template.preview}
 
             <p
               className="text-sm font-bold text-[#F5F0EB] mb-1"
@@ -114,7 +149,9 @@ export default function StepTemplate({
           style={{ fontFamily: "var(--font-body)" }}
         >
           Continue
-          <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+          <span className="transition-transform duration-200 group-hover:translate-x-1">
+            →
+          </span>
         </button>
       </div>
     </div>

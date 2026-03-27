@@ -19,13 +19,19 @@ def validate_cv(ai_response: str, strict: bool = True) -> CVProfile:
     except json.JSONDecodeError as e:
         raise ValueError(f"AI response was not valid JSON: {e}")
 
-    # If not strict, truncate bullets to 4 before validating
+    # If not strict, truncate fields to schema limits before validating
     if not strict:
         for exp in data.get("experience", []):
             if len(exp.get("bullets", [])) > 4:
                 exp["bullets"] = exp["bullets"][:4]
         if len(data.get("skills", [])) > 12:
             data["skills"] = data["skills"][:12]
+        summary = data.get("summary", "")
+        if len(summary) > 400:
+            truncated = summary[:400]
+            # back off to the last sentence boundary
+            last_stop = max(truncated.rfind(". "), truncated.rfind("! "), truncated.rfind("? "))
+            data["summary"] = truncated[: last_stop + 1].strip() if last_stop != -1 else truncated.strip()
 
     try:
         profile = CVProfile(**data)

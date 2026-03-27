@@ -4,19 +4,31 @@ import { useState } from "react";
 import StepIndicator from "@/components/StepIndicator";
 import StepProfile from "@/components/StepProfile";
 import StepJob from "@/components/StepJob";
+import StepReview from "@/components/StepReview";
 import StepTemplate from "@/components/StepTemplate";
 import StepDownload from "@/components/StepDownload";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { CVData, Keywords } from "@/lib/api";
 
 export default function BuildPage() {
   const [step, setStep] = useState(1);
+
+  // Step 1 — profile
   const [file, setFile] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState("");
+
+  // Step 2 — job
   const [jobDescription, setJobDescription] = useState("");
+
+  // Step 3 — review (populated after /extract call)
+  const [cvData, setCvData] = useState<CVData | null>(null);
+  const [keywords, setKeywords] = useState<Keywords | null>(null);
+
+  // Step 4 — template + download
   const [template, setTemplate] = useState("classic");
 
-  const next = () => setStep((s) => Math.min(s + 1, 4));
+  const next = () => setStep((s) => Math.min(s + 1, 5));
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
   return (
@@ -42,9 +54,9 @@ export default function BuildPage() {
       {/* ─── Content ─────────────────────────────────────────────── */}
       <div className="max-w-2xl mx-auto px-6 md:px-12 py-12 md:py-20">
 
-        {/* Step indicator */}
+        {/* Step indicator — 5 steps now */}
         <div className="mb-12">
-          <StepIndicator currentStep={step} totalSteps={4} />
+          <StepIndicator currentStep={step} totalSteps={5} />
         </div>
 
         {/* Steps */}
@@ -57,6 +69,7 @@ export default function BuildPage() {
             onNext={next}
           />
         )}
+
         {step === 2 && (
           <StepJob
             jobDescription={jobDescription}
@@ -65,7 +78,24 @@ export default function BuildPage() {
             onBack={back}
           />
         )}
+
+        {/* Step 3 — AI extraction + review/edit */}
         {step === 3 && (
+          <StepReview
+            file={file}
+            pastedText={pastedText}
+            jobDescription={jobDescription}
+            onNext={(cv, kw) => {
+              setCvData(cv);
+              setKeywords(kw);
+              next();
+            }}
+            onBack={back}
+          />
+        )}
+
+        {/* Step 4 — template picker */}
+        {step === 4 && (
           <StepTemplate
             selectedTemplate={template}
             onTemplateChange={setTemplate}
@@ -73,10 +103,11 @@ export default function BuildPage() {
             onBack={back}
           />
         )}
-        {step === 4 && (
+
+        {/* Step 5 — generate + download */}
+        {step === 5 && cvData && (
           <StepDownload
-            file={file}
-            pastedText={pastedText}
+            cvData={cvData}
             jobDescription={jobDescription}
             template={template}
             onBack={back}

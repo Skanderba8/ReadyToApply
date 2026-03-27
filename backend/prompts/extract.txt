@@ -49,5 +49,6 @@ Rules:
 - Dates must be in "Mon YYYY" format (e.g. "Jan 2021"). Use "Present" for current roles.
 - Bullets must be extracted verbatim from the text — do not rewrite them at this stage.
 - If no summary exists in the source, set summary to "".
+- The summary field MUST be 400 characters or fewer. If the source summary is longer, truncate it at a sentence boundary before the 400-character limit.
 
 Return nothing except the JSON object.
