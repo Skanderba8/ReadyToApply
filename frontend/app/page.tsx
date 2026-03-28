@@ -1,21 +1,19 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, FileText, Zap, Download } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 
 export default function LandingPage() {
-  const router = useRouter();
   const { u } = useLang();
 
   return (
     <main className="min-h-dvh bg-[#111111] text-[#F5F0EB] overflow-hidden">
 
       <nav className="flex items-center justify-end px-6 md:px-12 py-6 pt-16">
-        <button onClick={() => router.push("/build")}
+        <Link href="/build"
           className="text-sm text-[#9A9A9A] hover:text-[#F5F0EB] transition-colors duration-200">
           {u("launchApp")}
-        </button>
+        </Link>
       </nav>
 
       <section className="relative px-6 md:px-12 pt-16 md:pt-24 pb-24 md:pb-32">
@@ -46,12 +44,12 @@ export default function LandingPage() {
           </p>
 
           <div className="animate-fade-up delay-300">
-            <button onClick={() => router.push("/build")}
+            <Link href="/build"
               className="group inline-flex items-center gap-3 px-8 py-4 text-base font-semibold text-[#111111] bg-[#FF4D00] hover:bg-[#FF8C42] transition-colors duration-200 rounded-none"
               style={{ fontFamily: "var(--font-body)" }}>
               {u("buildMyCv")}
               <ArrowRight size={18} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-            </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -63,13 +61,13 @@ export default function LandingPage() {
           <p className="text-xs uppercase tracking-widest text-[#9A9A9A] mb-12"
             style={{ fontFamily: "var(--font-display)" }}>{u("howItWorks")}</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[#2E2E2E]">
+          <ol className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[#2E2E2E]">
             {[
               { icon: FileText, step: "01", titleKey: "step1Title", bodyKey: "step1Body" },
               { icon: Zap,      step: "02", titleKey: "step2Title", bodyKey: "step2Body" },
               { icon: Download, step: "03", titleKey: "step3Title", bodyKey: "step3Body" },
             ].map(({ icon: Icon, step, titleKey, bodyKey }) => (
-              <div key={step} className="bg-[#111111] p-8 md:p-10 flex flex-col gap-6">
+              <li key={step} className="bg-[#111111] p-8 md:p-10 flex flex-col gap-6">
                 <div className="flex items-start justify-between">
                   <Icon size={24} style={{ color: "var(--color-flame)" }} aria-hidden="true" />
                   <span className="text-xs text-[#2E2E2E] font-bold" style={{ fontFamily: "var(--font-display)" }}>{step}</span>
@@ -78,9 +76,9 @@ export default function LandingPage() {
                   <h3 className="text-lg font-bold mb-2 text-[#F5F0EB]" style={{ fontFamily: "var(--font-display)" }}>{u(titleKey)}</h3>
                   <p className="text-sm text-[#9A9A9A] leading-relaxed">{u(bodyKey)}</p>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 
@@ -91,19 +89,19 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold leading-tight" style={{ fontFamily: "var(--font-display)" }}>
             {u("readyToApply")}
           </h2>
-          <button onClick={() => router.push("/build")}
+          <Link href="/build"
             className="group inline-flex items-center gap-3 px-8 py-4 text-base font-semibold text-[#F5F0EB] border border-[#FF4D00] hover:bg-[#FF4D00] hover:text-[#111111] transition-all duration-200 rounded-none w-fit"
             style={{ fontFamily: "var(--font-body)" }}>
             {u("getStarted")}
             <ArrowRight size={18} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-          </button>
+          </Link>
         </div>
       </section>
 
       <footer className="px-6 md:px-12 py-8 border-t border-[#2E2E2E]">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <span className="flex items-center gap-2 text-sm font-bold" style={{ fontFamily: "var(--font-display)" }}>
-            <img src="/logo.png" alt="" width={18} height={18} aria-hidden="true" />
+            <Image src="/logo.png" alt="" width={18} height={18} aria-hidden="true" />
             ReadyToApply
           </span>
           <div className="flex flex-col items-end gap-1">

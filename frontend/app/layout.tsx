@@ -45,6 +45,11 @@ export const metadata: Metadata = {
     title: 'ReadyToApply',
     description: 'Tailored ATS-clean CVs in seconds.',
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  keywords: ["ATS resume", "job application automation", "LinkedIn to CV", "resume builder", "ReadyToApply"],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
